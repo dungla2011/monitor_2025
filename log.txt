@@ -1,0 +1,1194 @@
+2025-09-06T22:47:43.086150 - 🚀 Starting Main Thread Manager...
+2025-09-06T22:47:43.086150 -    ⏰ Check interval: 5 seconds
+2025-09-06T22:47:43.087150 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T22:47:43.087150 - ================================================================================
+2025-09-06T22:47:43.300761 - 
+📊 [Main Manager] Cycle #1 at 22:47:43
+2025-09-06T22:47:43.300761 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:47:43.301748 -    🏃 Running: 0 threads []
+2025-09-06T22:47:43.302743 -    ➕ Need to start: [2]
+2025-09-06T22:47:43.302743 - 🔧 [Main] Starting thread for: Test abc (ID: 2)
+2025-09-06T22:47:43.305745 - 🚀 [Thread 2] Started monitoring: Test abc
+2025-09-06T22:47:43.305745 -    [Thread 2] Type: ping_web
+2025-09-06T22:47:43.310756 -    [Thread 2] URL: https://mytree.vn
+2025-09-06T22:47:43.400744 - 📊 [Thread 2] Checking at 22:47:43
+2025-09-06T22:47:43.401745 - 
+🔍 Checking service: Test abc (ID: 2)
+2025-09-06T22:47:43.401745 -    Type: ping_web
+2025-09-06T22:47:43.402727 -    URL: https://mytree.vn
+2025-09-06T22:47:43.403743 -    Check interval: 60s
+2025-09-06T22:47:43.403743 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:47:44.064123 -    ✅ HTTP request successful (Status: 200, Time: 656.41ms)
+2025-09-06T22:47:44.065124 -    [Thread 2] ✅ SUCCESS | 656.41ms | Test abc
+2025-09-06T22:48:44.165700 - 📊 [Thread 2] Checking at 22:48:44
+2025-09-06T22:48:44.166715 - 
+🔍 Checking service: Test abc (ID: 2)
+2025-09-06T22:48:44.167704 -    Type: ping_web
+2025-09-06T22:48:44.168702 -    URL: https://mytree.vn
+2025-09-06T22:48:44.168702 -    Check interval: 180s
+2025-09-06T22:48:44.169703 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:48:44.616972 - 
+📊 [Main Manager] Cycle #13 at 22:48:44
+2025-09-06T22:48:44.617958 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:48:44.617958 -    🏃 Running: 1 threads [2]
+2025-09-06T22:48:44.801462 -    ✅ HTTP request successful (Status: 200, Time: 628.76ms)
+2025-09-06T22:48:44.802446 -    [Thread 2] ✅ SUCCESS | 628.76ms | Test abc
+2025-09-06T22:49:45.852155 - 
+📊 [Main Manager] Cycle #25 at 22:49:45
+2025-09-06T22:49:45.853156 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:49:45.853156 -    🏃 Running: 1 threads [2]
+2025-09-06T22:50:47.125573 - 
+📊 [Main Manager] Cycle #37 at 22:50:47
+2025-09-06T22:50:47.125573 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:50:47.126563 -    🏃 Running: 1 threads [2]
+2025-09-06T22:51:44.916093 - 📊 [Thread 2] Checking at 22:51:44
+2025-09-06T22:51:44.917091 - 
+🔍 Checking service: Test abc (ID: 2)
+2025-09-06T22:51:44.918091 -    Type: ping_web
+2025-09-06T22:51:44.918091 -    URL: https://mytree.vn
+2025-09-06T22:51:44.919092 -    Check interval: 180s
+2025-09-06T22:51:44.920093 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:51:47.773098 -    ✅ HTTP request successful (Status: 200, Time: 2850.03ms)
+2025-09-06T22:51:47.774098 -    [Thread 2] ✅ SUCCESS | 2850.03ms | Test abc
+2025-09-06T22:51:48.331238 - 
+📊 [Main Manager] Cycle #49 at 22:51:48
+2025-09-06T22:51:48.332235 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:51:48.332235 -    🏃 Running: 1 threads [2]
+2025-09-06T22:52:04.097691 - 🚀 Starting Main Thread Manager...
+2025-09-06T22:52:04.097691 -    ⏰ Check interval: 5 seconds
+2025-09-06T22:52:04.097691 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T22:52:04.098615 - ================================================================================
+2025-09-06T22:52:04.272789 - 
+📊 [Main Manager] Cycle #1 at 22:52:04
+2025-09-06T22:52:04.272789 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:52:04.273789 -    🏃 Running: 0 threads []
+2025-09-06T22:52:04.273789 -    ➕ Need to start: [2]
+2025-09-06T22:52:04.274806 - 🔧 [Main] Starting thread for: Test abc (ID: 2)
+2025-09-06T22:52:04.276788 - 🚀 [Thread 2] Started monitoring: Test abc
+2025-09-06T22:52:04.277787 -    [Thread 2] Type: ping_web
+2025-09-06T22:52:04.277787 -    [Thread 2] URL: https://mytree.vn
+2025-09-06T22:52:04.353835 - 📊 [Thread 2] Checking at 22:52:04
+2025-09-06T22:52:04.354835 - 
+🔍 Checking service: Test abc (ID: 2)
+2025-09-06T22:52:04.355835 -    Type: ping_web
+2025-09-06T22:52:04.355835 -    URL: https://mytree.vn
+2025-09-06T22:52:04.356834 -    Check interval: 180s
+2025-09-06T22:52:04.356834 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:52:05.036182 -    ✅ HTTP request successful (Status: 200, Time: 676.35ms)
+2025-09-06T22:52:05.037182 -    [Thread 2] ✅ SUCCESS | 676.35ms | Test abc
+2025-09-06T22:52:49.536320 - 
+📊 [Main Manager] Cycle #61 at 22:52:49
+2025-09-06T22:52:49.537338 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:52:49.538323 -    🏃 Running: 1 threads [2]
+2025-09-06T22:53:05.577492 - 
+📊 [Main Manager] Cycle #13 at 22:53:05
+2025-09-06T22:53:05.577492 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:53:05.578493 -    🏃 Running: 1 threads [2]
+2025-09-06T22:53:30.980513 - 
+🛑 [Main Manager] Shutting down after 17 cycles...
+2025-09-06T22:53:30.981514 - 🛑 [Main Manager] Stopping all monitor threads...
+2025-09-06T22:53:30.981514 - 🧹 [Thread 2] Cleaned up thread for: Test abc
+2025-09-06T22:53:30.982513 - ✅ [Main Manager] All threads stopped. Manager shutdown complete.
+2025-09-06T22:53:50.825909 - 
+📊 [Main Manager] Cycle #73 at 22:53:50
+2025-09-06T22:53:50.825909 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:53:50.825909 -    🏃 Running: 1 threads [2]
+2025-09-06T22:54:47.881261 - 📊 [Thread 2] Checking at 22:54:47
+2025-09-06T22:54:47.881261 - 
+🔍 Checking service: Test abc1 (ID: 2)
+2025-09-06T22:54:47.882264 -    Type: ping_web
+2025-09-06T22:54:47.883262 -    URL: https://mytree.vn
+2025-09-06T22:54:47.883262 -    Check interval: 60s
+2025-09-06T22:54:47.884262 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:54:48.528087 -    ✅ HTTP request successful (Status: 200, Time: 641.83ms)
+2025-09-06T22:54:48.528087 -    [Thread 2] ✅ SUCCESS | 641.83ms | Test abc1
+2025-09-06T22:54:52.100394 - 
+📊 [Main Manager] Cycle #85 at 22:54:52
+2025-09-06T22:54:52.101394 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:54:52.102392 -    🏃 Running: 1 threads [2]
+2025-09-06T22:55:48.636169 - 📊 [Thread 2] Checking at 22:55:48
+2025-09-06T22:55:48.637169 - 
+🔍 Checking service: Test abc1 (ID: 2)
+2025-09-06T22:55:48.637169 -    Type: ping_web
+2025-09-06T22:55:48.638170 -    URL: https://mytree.vn
+2025-09-06T22:55:48.638170 -    Check interval: 60s
+2025-09-06T22:55:48.638170 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:55:49.321041 -    ✅ HTTP request successful (Status: 200, Time: 678.89ms)
+2025-09-06T22:55:49.322042 -    [Thread 2] ✅ SUCCESS | 678.89ms | Test abc1
+2025-09-06T22:55:53.298621 - 
+📊 [Main Manager] Cycle #97 at 22:55:53
+2025-09-06T22:55:53.299624 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:55:53.299624 -    🏃 Running: 1 threads [2]
+2025-09-06T22:56:49.396383 - 📊 [Thread 2] Checking at 22:56:49
+2025-09-06T22:56:49.397362 - 
+🔍 Checking service: Test abc1 (ID: 2)
+2025-09-06T22:56:49.398382 -    Type: ping_web
+2025-09-06T22:56:49.398382 -    URL: https://mytree.vn
+2025-09-06T22:56:49.399388 -    Check interval: 60s
+2025-09-06T22:56:49.400381 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:56:50.015702 -    ✅ HTTP request successful (Status: 200, Time: 611.32ms)
+2025-09-06T22:56:50.015702 -    [Thread 2] ✅ SUCCESS | 611.32ms | Test abc1
+2025-09-06T22:56:54.700383 - 
+📊 [Main Manager] Cycle #109 at 22:56:54
+2025-09-06T22:56:54.701385 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:56:54.701385 -    🏃 Running: 1 threads [2]
+2025-09-06T22:57:33.455172 - 🚀 Starting Main Thread Manager...
+2025-09-06T22:57:33.456172 -    ⏰ Check interval: 5 seconds
+2025-09-06T22:57:33.457172 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T22:57:33.457172 - ================================================================================
+2025-09-06T22:57:33.633519 - 
+📊 [Main Manager] Cycle #1 at 22:57:33
+2025-09-06T22:57:33.634519 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:57:33.635517 -    🏃 Running: 0 threads []
+2025-09-06T22:57:33.635517 -    ➕ Need to start: [2]
+2025-09-06T22:57:33.636521 - 🔧 [Main] Starting thread for: Test abc1 (ID: 2)
+2025-09-06T22:57:33.638500 - 🚀 [Thread 2] Starting monitoring for: Test abc1
+2025-09-06T22:57:33.638500 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T22:57:33.639498 -    [Thread 2] Type: ping_web
+2025-09-06T22:57:33.639498 -    [Thread 2] Monitoring config changes...
+2025-09-06T22:57:33.640501 - 
+📊 [Thread 2] Check #1 at 22:57:33
+2025-09-06T22:57:34.263121 -    [Thread 2] ✅ SUCCESS | 618.61ms | Test abc1 (ping_web)
+2025-09-06T22:57:50.116948 - 📊 [Thread 2] Checking at 22:57:50
+2025-09-06T22:57:50.117954 - 
+🔍 Checking service: Test abc1 (ID: 2)
+2025-09-06T22:57:50.118964 -    Type: ping_web
+2025-09-06T22:57:50.118964 -    URL: https://mytree.vn
+2025-09-06T22:57:50.119968 -    Check interval: 60s
+2025-09-06T22:57:50.120963 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:57:50.772661 -    ✅ HTTP request successful (Status: 200, Time: 648.70ms)
+2025-09-06T22:57:50.773643 -    [Thread 2] ✅ SUCCESS | 648.70ms | Test abc1
+2025-09-06T22:57:55.906740 - 
+📊 [Main Manager] Cycle #121 at 22:57:55
+2025-09-06T22:57:55.907738 -    💾 DB Enabled: 1 items [2]
+2025-09-06T22:57:55.907738 -    🏃 Running: 1 threads [2]
+2025-09-06T22:58:05.299987 - 
+🔄 [Thread 2] Configuration changes detected for Test abc1:
+2025-09-06T22:58:05.300985 -    - name: Test abc1 -> Test abc11
+2025-09-06T22:58:05.300985 - 🛑 [Thread 2] Stopping thread due to config changes after 1 checks.
+2025-09-06T22:58:05.301984 - 🧹 [Thread 2] Thread cleanup completed for Test abc1
+2025-09-06T22:58:09.494891 - 🔧 [Main] Starting thread for: Test abc11 (ID: 2)
+2025-09-06T22:58:09.496888 - 🚀 [Thread 2] Starting monitoring for: Test abc11
+2025-09-06T22:58:09.496888 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T22:58:09.497887 -    [Thread 2] Type: ping_web
+2025-09-06T22:58:09.498887 -    [Thread 2] Monitoring config changes...
+2025-09-06T22:58:09.499886 - 
+📊 [Thread 2] Check #1 at 22:58:09
+2025-09-06T22:58:10.162043 -    [Thread 2] ✅ SUCCESS | 658.14ms | Test abc11 (ping_web)
+2025-09-06T22:58:14.698778 - 🔧 [Main] Starting thread for: Test1 (ID: 1)
+2025-09-06T22:58:14.700778 - 🚀 [Thread 1] Starting monitoring for: Test1
+2025-09-06T22:58:14.700778 -    [Thread 1] Check interval: 60 seconds
+2025-09-06T22:58:14.701777 -    [Thread 1] Type: ping_icmp
+2025-09-06T22:58:14.702776 -    [Thread 1] Monitoring config changes...
+2025-09-06T22:58:14.703776 - 
+📊 [Thread 1] Check #1 at 22:58:14
+2025-09-06T22:58:14.870738 -    [Thread 1] ✅ SUCCESS | 164.97ms | Test1 (ping_icmp)
+2025-09-06T22:58:16.302995 - 🔧 [Main] Starting thread for: Test1 (ID: 1)
+2025-09-06T22:58:16.304979 - 🚀 [Thread 1] Started monitoring: Test1
+2025-09-06T22:58:16.305994 -    [Thread 1] Type: ping_icmp
+2025-09-06T22:58:16.305994 -    [Thread 1] URL: https://glx.com.vn
+2025-09-06T22:58:16.395964 - 📊 [Thread 1] Checking at 22:58:16
+2025-09-06T22:58:16.396964 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T22:58:16.396964 -    Type: ping_icmp
+2025-09-06T22:58:16.397963 -    URL: https://glx.com.vn
+2025-09-06T22:58:16.398949 -    Check interval: 60s
+2025-09-06T22:58:16.398949 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T22:58:16.425954 -    ✅ Ping successful (Time: 25.99ms)
+2025-09-06T22:58:16.426937 -    [Thread 1] ✅ SUCCESS | 25.99ms | Test1
+2025-09-06T22:58:35.244990 - 
+📊 [Main Manager] Cycle #13 at 22:58:35
+2025-09-06T22:58:35.244990 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T22:58:35.245990 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T22:58:50.879111 - 📊 [Thread 2] Checking at 22:58:50
+2025-09-06T22:58:50.880106 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T22:58:50.881114 -    Type: ping_web
+2025-09-06T22:58:50.882103 -    URL: https://mytree.vn
+2025-09-06T22:58:50.882103 -    Check interval: 60s
+2025-09-06T22:58:50.883118 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:58:51.507242 -    ✅ HTTP request successful (Status: 200, Time: 622.13ms)
+2025-09-06T22:58:51.507242 -    [Thread 2] ✅ SUCCESS | 622.13ms | Test abc11
+2025-09-06T22:58:57.248325 - 
+📊 [Main Manager] Cycle #133 at 22:58:57
+2025-09-06T22:58:57.249323 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T22:58:57.249323 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T22:59:12.390263 - 
+📊 [Thread 2] Check #2 at 22:59:12
+2025-09-06T22:59:13.045675 -    [Thread 2] ✅ SUCCESS | 653.39ms | Test abc11 (ping_web)
+2025-09-06T22:59:16.533950 - 📊 [Thread 1] Checking at 22:59:16
+2025-09-06T22:59:16.534949 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T22:59:16.534949 -    Type: ping_icmp
+2025-09-06T22:59:16.535933 -    URL: https://glx.com.vn
+2025-09-06T22:59:16.536934 -    Check interval: 60s
+2025-09-06T22:59:16.536934 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T22:59:16.574936 -    ✅ Ping successful (Time: 35.97ms)
+2025-09-06T22:59:16.574936 -    [Thread 1] ✅ SUCCESS | 35.97ms | Test1
+2025-09-06T22:59:16.967862 - 
+📊 [Thread 1] Check #2 at 22:59:16
+2025-09-06T22:59:16.998851 -    [Thread 1] ✅ SUCCESS | 30.00ms | Test1 (ping_icmp)
+2025-09-06T22:59:36.531468 - 
+📊 [Main Manager] Cycle #25 at 22:59:36
+2025-09-06T22:59:36.532443 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T22:59:36.532443 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T22:59:51.603551 - 📊 [Thread 2] Checking at 22:59:51
+2025-09-06T22:59:51.604533 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T22:59:51.605534 -    Type: ping_web
+2025-09-06T22:59:51.605534 -    URL: https://mytree.vn
+2025-09-06T22:59:51.606534 -    Check interval: 60s
+2025-09-06T22:59:51.607550 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T22:59:52.204005 -    ✅ HTTP request successful (Status: 200, Time: 593.47ms)
+2025-09-06T22:59:52.205005 -    [Thread 2] ✅ SUCCESS | 593.47ms | Test abc11
+2025-09-06T22:59:58.538753 - 
+📊 [Main Manager] Cycle #145 at 22:59:58
+2025-09-06T22:59:58.539769 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T22:59:58.539769 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:00:15.098741 - 
+📊 [Thread 2] Check #3 at 23:00:15
+2025-09-06T23:00:15.711608 -    [Thread 2] ✅ SUCCESS | 608.87ms | Test abc11 (ping_web)
+2025-09-06T23:00:16.689098 - 📊 [Thread 1] Checking at 23:00:16
+2025-09-06T23:00:16.689098 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:00:16.690097 -    Type: ping_icmp
+2025-09-06T23:00:16.691096 -    URL: https://glx.com.vn
+2025-09-06T23:00:16.691096 -    Check interval: 60s
+2025-09-06T23:00:16.692095 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:00:16.845050 -    ✅ Ping successful (Time: 151.97ms)
+2025-09-06T23:00:16.845050 -    [Thread 1] ✅ SUCCESS | 151.97ms | Test1
+2025-09-06T23:00:19.186224 - 
+📊 [Thread 1] Check #3 at 23:00:19
+2025-09-06T23:00:19.218254 -    [Thread 1] ✅ SUCCESS | 32.03ms | Test1 (ping_icmp)
+2025-09-06T23:00:37.791831 - 
+📊 [Main Manager] Cycle #37 at 23:00:37
+2025-09-06T23:00:37.793518 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:00:37.794511 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:00:52.313834 - 📊 [Thread 2] Checking at 23:00:52
+2025-09-06T23:00:52.314838 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:00:52.315835 -    Type: ping_web
+2025-09-06T23:00:52.316833 -    URL: https://mytree.vn
+2025-09-06T23:00:52.316833 -    Check interval: 60s
+2025-09-06T23:00:52.317832 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:00:52.956126 -    ✅ HTTP request successful (Status: 200, Time: 635.28ms)
+2025-09-06T23:00:52.957111 -    [Thread 2] ✅ SUCCESS | 635.28ms | Test abc11
+2025-09-06T23:00:59.763778 - 
+📊 [Main Manager] Cycle #157 at 23:00:59
+2025-09-06T23:00:59.764756 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:00:59.764756 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:01:16.945807 - 📊 [Thread 1] Checking at 23:01:16
+2025-09-06T23:01:16.945807 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:01:16.946789 -    Type: ping_icmp
+2025-09-06T23:01:16.947791 -    URL: https://glx.com.vn
+2025-09-06T23:01:16.948805 -    Check interval: 60s
+2025-09-06T23:01:16.948805 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:01:16.990792 -    ✅ Ping successful (Time: 39.97ms)
+2025-09-06T23:01:16.991777 -    [Thread 1] ✅ SUCCESS | 39.97ms | Test1
+2025-09-06T23:01:17.716999 - 
+📊 [Thread 2] Check #4 at 23:01:17
+2025-09-06T23:01:18.419242 -    [Thread 2] ✅ SUCCESS | 698.25ms | Test abc11 (ping_web)
+2025-09-06T23:01:21.368934 - 
+📊 [Thread 1] Check #4 at 23:01:21
+2025-09-06T23:01:21.407915 -    [Thread 1] ✅ SUCCESS | 37.99ms | Test1 (ping_icmp)
+2025-09-06T23:01:38.990207 - 
+📊 [Main Manager] Cycle #49 at 23:01:38
+2025-09-06T23:01:38.990207 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:01:38.991207 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:01:53.069578 - 📊 [Thread 2] Checking at 23:01:53
+2025-09-06T23:01:53.070563 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:01:53.071537 -    Type: ping_web
+2025-09-06T23:01:53.072565 -    URL: https://mytree.vn
+2025-09-06T23:01:53.072565 -    Check interval: 60s
+2025-09-06T23:01:53.073567 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:01:53.749749 -    ✅ HTTP request successful (Status: 200, Time: 672.67ms)
+2025-09-06T23:01:53.749749 -    [Thread 2] ✅ SUCCESS | 672.67ms | Test abc11
+2025-09-06T23:02:00.988853 - 
+📊 [Main Manager] Cycle #169 at 23:02:00
+2025-09-06T23:02:00.988853 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:02:00.989852 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:02:17.099842 - 📊 [Thread 1] Checking at 23:02:17
+2025-09-06T23:02:17.100841 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:02:17.101841 -    Type: ping_icmp
+2025-09-06T23:02:17.101841 -    URL: https://glx.com.vn
+2025-09-06T23:02:17.102840 -    Check interval: 60s
+2025-09-06T23:02:17.103841 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:02:17.227857 -    ✅ Ping successful (Time: 123.02ms)
+2025-09-06T23:02:17.228842 -    [Thread 1] ✅ SUCCESS | 123.02ms | Test1
+2025-09-06T23:02:20.629638 - 
+📊 [Thread 2] Check #5 at 23:02:20
+2025-09-06T23:02:21.234740 -    [Thread 2] ✅ SUCCESS | 602.12ms | Test abc11 (ping_web)
+2025-09-06T23:02:23.545545 - 
+📊 [Thread 1] Check #5 at 23:02:23
+2025-09-06T23:02:23.587548 -    [Thread 1] ✅ SUCCESS | 41.00ms | Test1 (ping_icmp)
+2025-09-06T23:02:40.269052 - 
+📊 [Main Manager] Cycle #61 at 23:02:40
+2025-09-06T23:02:40.269052 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:02:40.270033 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:02:53.847069 - 📊 [Thread 2] Checking at 23:02:53
+2025-09-06T23:02:53.848070 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:02:53.849089 -    Type: ping_web
+2025-09-06T23:02:53.849089 -    URL: https://mytree.vn
+2025-09-06T23:02:53.850086 -    Check interval: 60s
+2025-09-06T23:02:53.851090 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:02:54.497476 -    ✅ HTTP request successful (Status: 200, Time: 643.39ms)
+2025-09-06T23:02:54.498477 -    [Thread 2] ✅ SUCCESS | 643.39ms | Test abc11
+2025-09-06T23:02:55.450431 - 
+🛑 [Main Manager] Shutting down after 63 cycles...
+2025-09-06T23:02:55.451317 - 🛑 [Main Manager] Stopping all monitor threads...
+2025-09-06T23:02:55.451317 - 🧹 [Thread 1] Thread cleanup completed for Test1
+2025-09-06T23:02:55.452317 - 🧹 [Thread 2] Thread cleanup completed for Test abc11
+2025-09-06T23:02:55.453316 - ✅ [Main Manager] All threads stopped. Manager shutdown complete.
+2025-09-06T23:02:58.236387 - 🚀 Starting Main Thread Manager...
+2025-09-06T23:02:58.236387 -    ⏰ Check interval: 5 seconds
+2025-09-06T23:02:58.237376 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T23:02:58.238372 - ================================================================================
+2025-09-06T23:02:58.418520 - 
+📊 [Main Manager] Cycle #1 at 23:02:58
+2025-09-06T23:02:58.418520 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:02:58.419520 -    🏃 Running: 0 threads []
+2025-09-06T23:02:58.419520 -    ➕ Need to start: [1, 2]
+2025-09-06T23:02:58.420520 - 🔧 [Main] Starting thread for: Test1 (ID: 1)
+2025-09-06T23:02:58.422519 - 🚀 [Thread 1] Starting monitoring for: Test1
+2025-09-06T23:02:58.422519 -    [Thread 1] Check interval: 60 seconds
+2025-09-06T23:02:58.423519 -    [Thread 1] Type: ping_icmp
+2025-09-06T23:02:58.424518 -    [Thread 1] Monitoring config changes...
+2025-09-06T23:02:58.424518 - 
+📊 [Thread 1] Check #1 at 23:02:58
+2025-09-06T23:02:58.453524 -    [Thread 1] ✅ SUCCESS | 28.01ms | Test1 (ping_icmp)
+2025-09-06T23:02:58.524846 - 🔧 [Main] Starting thread for: Test abc11 (ID: 2)
+2025-09-06T23:02:58.525835 - 🚀 [Thread 2] Starting monitoring for: Test abc11
+2025-09-06T23:02:58.526852 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:02:58.527834 -    [Thread 2] Type: ping_web
+2025-09-06T23:02:58.527834 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:02:58.528847 - 
+📊 [Thread 2] Check #1 at 23:02:58
+2025-09-06T23:02:59.276148 -    [Thread 2] ✅ SUCCESS | 743.30ms | Test abc11 (ping_web)
+2025-09-06T23:03:02.227625 - 
+📊 [Main Manager] Cycle #181 at 23:03:02
+2025-09-06T23:03:02.228613 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:03:02.228613 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:03:17.325822 - 📊 [Thread 1] Checking at 23:03:17
+2025-09-06T23:03:17.326836 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:03:17.327838 -    Type: ping_icmp
+2025-09-06T23:03:17.328819 -    URL: https://glx.com.vn
+2025-09-06T23:03:17.328819 -    Check interval: 60s
+2025-09-06T23:03:17.329836 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:03:17.370850 -    ✅ Ping successful (Time: 41.01ms)
+2025-09-06T23:03:17.371849 -    [Thread 1] ✅ SUCCESS | 41.01ms | Test1
+2025-09-06T23:03:27.746713 - 💀 [Main] Force stopping thread: Test1 (ID: 1)
+2025-09-06T23:03:29.303746 - 💀 [Main] Force stopping thread: Test1 (ID: 1)
+2025-09-06T23:03:29.536144 - 
+🛑 [Thread 1] Received stop signal from MainThread
+2025-09-06T23:03:30.344056 - 
+🔄 [Thread 2] Configuration changes detected for Test abc11:
+2025-09-06T23:03:30.344056 -    - enable: True -> False
+2025-09-06T23:03:30.345041 - 🛑 [Thread 2] Stopping thread due to config changes after 1 checks.
+2025-09-06T23:03:37.757904 - ⚠️ [Main] Thread 1 did not stop within timeout (may need process restart)
+2025-09-06T23:03:37.758887 - 💀 [Main] Force stopping thread: Test abc (ID: 2)
+2025-09-06T23:03:39.311742 - ⚠️ [Main] Thread 1 did not stop within timeout (may need process restart)
+2025-09-06T23:03:39.312726 - 💀 [Main] Force stopping thread: Test abc11 (ID: 2)
+2025-09-06T23:03:47.761311 - ⚠️ [Main] Thread 2 did not stop within timeout (may need process restart)
+2025-09-06T23:03:49.318602 - ⚠️ [Main] Thread 2 did not stop within timeout (may need process restart)
+2025-09-06T23:03:49.319585 - 🧹 [Thread 2] Thread cleanup completed for Test abc11
+2025-09-06T23:03:49.320587 - 🧹 [Thread 1] Thread cleanup completed for Test1
+2025-09-06T23:03:52.872143 - 💀 [Main] Force stopping thread: Test1 (ID: 1)
+2025-09-06T23:03:54.631058 - ⚠️ [Thread 2] Item Test abc disabled or deleted. Stopping thread.
+2025-09-06T23:04:02.880923 - ⚠️ [Main] Thread 1 did not stop within timeout (may need process restart)
+2025-09-06T23:04:02.881905 - 💀 [Main] Force stopping thread: Test abc (ID: 2)
+2025-09-06T23:04:12.892068 - ⚠️ [Main] Thread 2 did not stop within timeout (may need process restart)
+2025-09-06T23:04:12.892944 - 🧹 [Thread 2] Cleaned up thread for: Test abc
+2025-09-06T23:04:17.483601 - ⚠️ [Thread 1] Item Test1 disabled or deleted. Stopping thread.
+2025-09-06T23:04:17.484598 - 🧹 [Thread 1] Cleaned up thread for: Test1
+2025-09-06T23:04:19.875818 - 
+📊 [Main Manager] Cycle #13 at 23:04:19
+2025-09-06T23:04:19.876802 -    💾 DB Enabled: 0 items []
+2025-09-06T23:04:19.876802 -    🏃 Running: 0 threads []
+2025-09-06T23:04:38.393719 - 🔧 [Main] Starting thread for: Test abc11 (ID: 2)
+2025-09-06T23:04:38.395702 - 🚀 [Thread 2] Started monitoring: Test abc11
+2025-09-06T23:04:38.395702 -    [Thread 2] Type: ping_web
+2025-09-06T23:04:38.396717 -    [Thread 2] URL: https://mytree.vn
+2025-09-06T23:04:38.488286 - 📊 [Thread 2] Checking at 23:04:38
+2025-09-06T23:04:38.489286 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:04:38.490270 -    Type: ping_web
+2025-09-06T23:04:38.491274 -    URL: https://mytree.vn
+2025-09-06T23:04:38.491274 -    Check interval: 60s
+2025-09-06T23:04:38.492269 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:04:39.168630 -    ✅ HTTP request successful (Status: 200, Time: 674.36ms)
+2025-09-06T23:04:39.169614 -    [Thread 2] ✅ SUCCESS | 674.36ms | Test abc11
+2025-09-06T23:04:40.286734 - 🔧 [Main] Starting thread for: Test abc11 (ID: 2)
+2025-09-06T23:04:40.287731 - 🚀 [Thread 2] Starting monitoring for: Test abc11
+2025-09-06T23:04:40.288730 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:04:40.289733 -    [Thread 2] Type: ping_web
+2025-09-06T23:04:40.289733 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:04:40.290730 - 
+📊 [Thread 2] Check #1 at 23:04:40
+2025-09-06T23:04:40.919084 -    [Thread 2] ✅ SUCCESS | 624.37ms | Test abc11 (ping_web)
+2025-09-06T23:04:43.597620 - 
+📊 [Main Manager] Cycle #193 at 23:04:43
+2025-09-06T23:04:43.597620 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:04:43.598602 -    🏃 Running: 1 threads [2]
+2025-09-06T23:05:21.167010 - 
+📊 [Main Manager] Cycle #25 at 23:05:21
+2025-09-06T23:05:21.168007 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:05:21.169009 -    🏃 Running: 1 threads [2]
+2025-09-06T23:05:39.267428 - 📊 [Thread 2] Checking at 23:05:39
+2025-09-06T23:05:39.268408 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:05:39.269428 -    Type: ping_web
+2025-09-06T23:05:39.269428 -    URL: https://mytree.vn
+2025-09-06T23:05:39.270414 -    Check interval: 60s
+2025-09-06T23:05:39.271427 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:05:39.925246 -    ✅ HTTP request successful (Status: 200, Time: 649.82ms)
+2025-09-06T23:05:39.925246 -    [Thread 2] ✅ SUCCESS | 649.82ms | Test abc11
+2025-09-06T23:05:43.094086 - 
+📊 [Thread 2] Check #2 at 23:05:43
+2025-09-06T23:05:43.744224 -    [Thread 2] ✅ SUCCESS | 646.14ms | Test abc11 (ping_web)
+2025-09-06T23:05:44.851895 - 
+📊 [Main Manager] Cycle #205 at 23:05:44
+2025-09-06T23:05:44.852881 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:05:44.852881 -    🏃 Running: 1 threads [2]
+2025-09-06T23:06:22.371007 - 
+📊 [Main Manager] Cycle #37 at 23:06:22
+2025-09-06T23:06:22.372007 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:06:22.373006 -    🏃 Running: 1 threads [2]
+2025-09-06T23:06:40.030376 - 📊 [Thread 2] Checking at 23:06:40
+2025-09-06T23:06:40.031376 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:06:40.031376 -    Type: ping_web
+2025-09-06T23:06:40.032362 -    URL: https://mytree.vn
+2025-09-06T23:06:40.033378 -    Check interval: 60s
+2025-09-06T23:06:40.033378 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:06:40.740926 -    ✅ HTTP request successful (Status: 200, Time: 703.57ms)
+2025-09-06T23:06:40.741926 -    [Thread 2] ✅ SUCCESS | 703.57ms | Test abc11
+2025-09-06T23:06:46.038709 - 
+📊 [Thread 2] Check #3 at 23:06:46
+2025-09-06T23:06:46.040695 - 
+📊 [Main Manager] Cycle #217 at 23:06:45
+2025-09-06T23:06:46.040695 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:06:46.041692 -    🏃 Running: 1 threads [2]
+2025-09-06T23:06:46.822737 -    [Thread 2] ✅ SUCCESS | 781.03ms | Test abc11 (ping_web)
+2025-09-06T23:07:23.907452 - 
+📊 [Main Manager] Cycle #49 at 23:07:23
+2025-09-06T23:07:23.908437 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:07:23.909050 -    🏃 Running: 1 threads [2]
+2025-09-06T23:07:40.841716 - 📊 [Thread 2] Checking at 23:07:40
+2025-09-06T23:07:40.842696 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:07:40.842696 -    Type: ping_web
+2025-09-06T23:07:40.843709 -    URL: https://mytree.vn
+2025-09-06T23:07:40.844690 -    Check interval: 60s
+2025-09-06T23:07:40.844690 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:07:41.618018 -    ✅ HTTP request successful (Status: 200, Time: 771.33ms)
+2025-09-06T23:07:41.618018 -    [Thread 2] ✅ SUCCESS | 771.33ms | Test abc11
+2025-09-06T23:07:47.300693 - 
+📊 [Main Manager] Cycle #229 at 23:07:47
+2025-09-06T23:07:47.301692 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:07:47.301692 -    🏃 Running: 1 threads [2]
+2025-09-06T23:07:49.085600 - 
+📊 [Thread 2] Check #4 at 23:07:49
+2025-09-06T23:07:49.860215 -    [Thread 2] ✅ SUCCESS | 771.63ms | Test abc11 (ping_web)
+2025-09-06T23:08:25.171494 - 
+📊 [Main Manager] Cycle #61 at 23:08:25
+2025-09-06T23:08:25.172493 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:08:25.173494 -    🏃 Running: 1 threads [2]
+2025-09-06T23:08:41.729623 - 📊 [Thread 2] Checking at 23:08:41
+2025-09-06T23:08:41.730609 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:08:41.731610 -    Type: ping_web
+2025-09-06T23:08:41.731610 -    URL: https://mytree.vn
+2025-09-06T23:08:41.732608 -    Check interval: 60s
+2025-09-06T23:08:41.733609 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:08:42.401558 -    ✅ HTTP request successful (Status: 200, Time: 663.96ms)
+2025-09-06T23:08:42.402555 -    [Thread 2] ✅ SUCCESS | 663.96ms | Test abc11
+2025-09-06T23:08:48.558450 - 
+📊 [Main Manager] Cycle #241 at 23:08:48
+2025-09-06T23:08:48.558450 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:08:48.559432 -    🏃 Running: 1 threads [2]
+2025-09-06T23:08:51.991921 - 
+📊 [Thread 2] Check #5 at 23:08:51
+2025-09-06T23:08:52.639621 -    [Thread 2] ✅ SUCCESS | 643.71ms | Test abc11 (ping_web)
+2025-09-06T23:09:26.489732 - 
+📊 [Main Manager] Cycle #73 at 23:09:26
+2025-09-06T23:09:26.489732 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:09:26.490732 -    🏃 Running: 1 threads [2]
+2025-09-06T23:09:42.463800 - 📊 [Thread 2] Checking at 23:09:42
+2025-09-06T23:09:42.464816 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:09:42.465799 -    Type: ping_web
+2025-09-06T23:09:42.465799 -    URL: https://mytree.vn
+2025-09-06T23:09:42.466817 -    Check interval: 60s
+2025-09-06T23:09:42.467798 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:09:43.209262 -    ✅ HTTP request successful (Status: 200, Time: 737.45ms)
+2025-09-06T23:09:43.210258 -    [Thread 2] ✅ SUCCESS | 737.45ms | Test abc11
+2025-09-06T23:09:49.747101 - 
+📊 [Main Manager] Cycle #253 at 23:09:49
+2025-09-06T23:09:49.747101 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:09:49.748099 -    🏃 Running: 1 threads [2]
+2025-09-06T23:09:54.939447 - 
+📊 [Thread 2] Check #6 at 23:09:54
+2025-09-06T23:09:55.713647 -    [Thread 2] ✅ SUCCESS | 771.20ms | Test abc11 (ping_web)
+2025-09-06T23:10:27.685660 - 
+📊 [Main Manager] Cycle #85 at 23:10:27
+2025-09-06T23:10:27.686660 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:10:27.687645 -    🏃 Running: 1 threads [2]
+2025-09-06T23:10:43.334573 - 📊 [Thread 2] Checking at 23:10:43
+2025-09-06T23:10:43.334573 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:10:43.335571 -    Type: ping_web
+2025-09-06T23:10:43.335571 -    URL: https://mytree.vn
+2025-09-06T23:10:43.336572 -    Check interval: 60s
+2025-09-06T23:10:43.336572 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:10:44.112637 -    ✅ HTTP request successful (Status: 200, Time: 773.07ms)
+2025-09-06T23:10:44.113640 -    [Thread 2] ✅ SUCCESS | 773.07ms | Test abc11
+2025-09-06T23:10:50.973327 - 
+📊 [Main Manager] Cycle #265 at 23:10:50
+2025-09-06T23:10:50.974323 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:10:50.974323 -    🏃 Running: 1 threads [2]
+2025-09-06T23:10:57.794771 - 
+📊 [Thread 2] Check #7 at 23:10:57
+2025-09-06T23:10:58.468845 -    [Thread 2] ✅ SUCCESS | 670.08ms | Test abc11 (ping_web)
+2025-09-06T23:11:28.913116 - 
+📊 [Main Manager] Cycle #97 at 23:11:28
+2025-09-06T23:11:28.913116 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:11:28.914117 -    🏃 Running: 1 threads [2]
+2025-09-06T23:11:44.179809 - 📊 [Thread 2] Checking at 23:11:44
+2025-09-06T23:11:44.180824 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:11:44.181810 -    Type: ping_web
+2025-09-06T23:11:44.182806 -    URL: https://mytree.vn
+2025-09-06T23:11:44.182806 -    Check interval: 60s
+2025-09-06T23:11:44.183810 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:11:44.798028 -    ✅ HTTP request successful (Status: 200, Time: 611.22ms)
+2025-09-06T23:11:44.798028 -    [Thread 2] ✅ SUCCESS | 611.22ms | Test abc11
+2025-09-06T23:11:52.225730 - 
+📊 [Main Manager] Cycle #277 at 23:11:52
+2025-09-06T23:11:52.226724 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:11:52.227726 -    🏃 Running: 1 threads [2]
+2025-09-06T23:12:00.512069 - 
+📊 [Thread 2] Check #8 at 23:12:00
+2025-09-06T23:12:01.200042 -    [Thread 2] ✅ SUCCESS | 683.00ms | Test abc11 (ping_web)
+2025-09-06T23:12:30.037014 - 
+📊 [Main Manager] Cycle #109 at 23:12:29
+2025-09-06T23:12:30.038010 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:12:30.039010 -    🏃 Running: 1 threads [2]
+2025-09-06T23:12:44.967525 - 📊 [Thread 2] Checking at 23:12:44
+2025-09-06T23:12:44.968513 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:12:44.969513 -    Type: ping_web
+2025-09-06T23:12:44.969513 -    URL: https://mytree.vn
+2025-09-06T23:12:44.970519 -    Check interval: 60s
+2025-09-06T23:12:44.971512 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:12:45.781230 -    ✅ HTTP request successful (Status: 200, Time: 807.72ms)
+2025-09-06T23:12:45.782224 -    [Thread 2] ✅ SUCCESS | 807.72ms | Test abc11
+2025-09-06T23:12:53.542691 - 
+📊 [Main Manager] Cycle #289 at 23:12:53
+2025-09-06T23:12:53.543691 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:12:53.544678 -    🏃 Running: 1 threads [2]
+2025-09-06T23:13:03.270780 - 
+📊 [Thread 2] Check #9 at 23:13:03
+2025-09-06T23:13:04.067440 -    [Thread 2] ✅ SUCCESS | 792.67ms | Test abc11 (ping_web)
+2025-09-06T23:13:31.257095 - 
+📊 [Main Manager] Cycle #121 at 23:13:31
+2025-09-06T23:13:31.258097 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:13:31.258097 -    🏃 Running: 1 threads [2]
+2025-09-06T23:13:45.888869 - 📊 [Thread 2] Checking at 23:13:45
+2025-09-06T23:13:45.889867 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:13:45.889867 -    Type: ping_web
+2025-09-06T23:13:45.890872 -    URL: https://mytree.vn
+2025-09-06T23:13:45.891882 -    Check interval: 60s
+2025-09-06T23:13:45.891882 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:13:46.543788 -    ✅ HTTP request successful (Status: 200, Time: 647.91ms)
+2025-09-06T23:13:46.544803 -    [Thread 2] ✅ SUCCESS | 647.91ms | Test abc11
+2025-09-06T23:13:54.812444 - 
+📊 [Main Manager] Cycle #301 at 23:13:54
+2025-09-06T23:13:54.813425 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:13:54.813425 -    🏃 Running: 1 threads [2]
+2025-09-06T23:14:06.081886 - 
+📊 [Thread 2] Check #10 at 23:14:06
+2025-09-06T23:14:06.811246 -    [Thread 2] ✅ SUCCESS | 725.38ms | Test abc11 (ping_web)
+2025-09-06T23:14:32.683184 - 
+📊 [Main Manager] Cycle #133 at 23:14:32
+2025-09-06T23:14:32.684182 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:14:32.685198 -    🏃 Running: 1 threads [2]
+2025-09-06T23:14:46.644828 - 📊 [Thread 2] Checking at 23:14:46
+2025-09-06T23:14:46.645826 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:14:46.646826 -    Type: ping_web
+2025-09-06T23:14:46.647828 -    URL: https://mytree.vn
+2025-09-06T23:14:46.647828 -    Check interval: 60s
+2025-09-06T23:14:46.648842 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:14:47.322396 -    ✅ HTTP request successful (Status: 200, Time: 669.55ms)
+2025-09-06T23:14:47.322396 -    [Thread 2] ✅ SUCCESS | 669.55ms | Test abc11
+2025-09-06T23:14:56.055077 - 
+📊 [Main Manager] Cycle #313 at 23:14:55
+2025-09-06T23:14:56.056073 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:14:56.056073 -    🏃 Running: 1 threads [2]
+2025-09-06T23:15:08.281682 - 
+🛑 [Main Manager] Shutting down after 139 cycles...
+2025-09-06T23:15:08.282668 - 🛑 [Main Manager] Stopping all monitor threads...
+2025-09-06T23:15:08.282668 - 🧹 [Thread 2] Thread cleanup completed for Test abc11
+2025-09-06T23:15:08.283669 - ✅ [Main Manager] All threads stopped. Manager shutdown complete.
+2025-09-06T23:15:46.669644 - 🚀 Starting Main Thread Manager...
+2025-09-06T23:15:46.670628 -    ⏰ Check interval: 5 seconds
+2025-09-06T23:15:46.671627 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T23:15:46.671627 - ================================================================================
+2025-09-06T23:15:46.840666 - 
+📊 [Main Manager] Cycle #1 at 23:15:46
+2025-09-06T23:15:46.841666 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:15:46.841666 -    🏃 Running: 0 threads []
+2025-09-06T23:15:46.842667 -    ➕ Need to start: [2]
+2025-09-06T23:15:46.843666 - 🔧 [Main] Starting thread for: Test abc11 (ID: 2)
+2025-09-06T23:15:46.845687 - 🚀 [Thread 2] Starting monitoring for: Test abc11
+2025-09-06T23:15:46.845687 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:15:46.846665 -    [Thread 2] Type: ping_web
+2025-09-06T23:15:46.847666 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:15:46.848665 - 
+📊 [Thread 2] Check #1 at 23:15:46
+2025-09-06T23:15:47.439990 - 📊 [Thread 2] Checking at 23:15:47
+2025-09-06T23:15:47.441006 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:15:47.442002 -    Type: ping_web
+2025-09-06T23:15:47.442991 -    URL: https://mytree.vn
+2025-09-06T23:15:47.442991 -    Check interval: 60s
+2025-09-06T23:15:47.444005 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:15:47.481993 -    [Thread 2] ✅ SUCCESS | 629.33ms | Test abc11 (ping_web)
+2025-09-06T23:15:48.107054 -    ✅ HTTP request successful (Status: 200, Time: 659.05ms)
+2025-09-06T23:15:48.107054 -    [Thread 2] ✅ SUCCESS | 659.05ms | Test abc11
+2025-09-06T23:15:51.965735 - 
+🛑 [Main Manager] Shutting down after 1 cycles...
+2025-09-06T23:15:51.966739 - 🛑 [Main Manager] Stopping all monitor threads...
+2025-09-06T23:15:51.966739 - 🧹 [Thread 2] Thread cleanup completed for Test abc11
+2025-09-06T23:15:51.967722 - ✅ [Main Manager] All threads stopped. Manager shutdown complete.
+2025-09-06T23:15:57.271492 - 
+📊 [Main Manager] Cycle #325 at 23:15:57
+2025-09-06T23:15:57.272490 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:15:57.272490 -    🏃 Running: 1 threads [2]
+2025-09-06T23:16:34.938428 - 🚀 Starting Main Thread Manager...
+2025-09-06T23:16:34.939414 -    ⏰ Check interval: 5 seconds
+2025-09-06T23:16:34.940414 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T23:16:34.940414 - ================================================================================
+2025-09-06T23:16:35.106613 - 
+📊 [Main Manager] Cycle #1 at 23:16:34
+2025-09-06T23:16:35.107585 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:16:35.108602 -    🏃 Running: 0 threads []
+2025-09-06T23:16:35.108602 -    ➕ Need to start: [2]
+2025-09-06T23:16:35.109601 - 🔧 [Main] Starting thread for: Test abc11 (ID: 2)
+2025-09-06T23:16:35.111607 - 🚀 [Thread 2] Starting monitoring for: Test abc11
+2025-09-06T23:16:35.112584 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:16:35.112584 -    [Thread 2] Type: ping_web
+2025-09-06T23:16:35.113605 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:16:35.114583 - 
+📊 [Thread 2] Check #1 at 23:16:35
+2025-09-06T23:16:35.974622 -    [Thread 2] ✅ SUCCESS | 857.04ms | Test abc11 (ping_web)
+2025-09-06T23:16:48.229215 - 📊 [Thread 2] Checking at 23:16:48
+2025-09-06T23:16:48.230195 - 
+🔍 Checking service: Test abc11 (ID: 2)
+2025-09-06T23:16:48.231210 -    Type: ping_web
+2025-09-06T23:16:48.231210 -    URL: https://mytree.vn
+2025-09-06T23:16:48.232195 -    Check interval: 60s
+2025-09-06T23:16:48.233209 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:16:49.379853 -    ✅ HTTP request successful (Status: 200, Time: 1144.64ms)
+2025-09-06T23:16:49.380853 -    [Thread 2] ✅ SUCCESS | 1144.64ms | Test abc11
+2025-09-06T23:16:55.573899 - 
+🛑 [Main Manager] Shutting down after 4 cycles...
+2025-09-06T23:16:55.574879 - 🛑 [Main Manager] Stopping all monitor threads...
+2025-09-06T23:16:55.574879 - 🧹 [Thread 2] Thread cleanup completed for Test abc11
+2025-09-06T23:16:55.575879 - ✅ [Main Manager] All threads stopped. Manager shutdown complete.
+2025-09-06T23:16:57.933408 - 🚀 Starting Main Thread Manager...
+2025-09-06T23:16:57.933408 -    ⏰ Check interval: 5 seconds
+2025-09-06T23:16:57.934393 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T23:16:57.934393 - ================================================================================
+2025-09-06T23:16:58.125609 - 
+📊 [Main Manager] Cycle #1 at 23:16:57
+2025-09-06T23:16:58.126633 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:16:58.127602 -    🏃 Running: 0 threads []
+2025-09-06T23:16:58.127602 -    ➕ Need to start: [2]
+2025-09-06T23:16:58.128628 - 🔧 [Main] Starting thread for: Test abc11 (ID: 2)
+2025-09-06T23:16:58.129601 - 🚀 [Thread 2] Starting monitoring for: Test abc11
+2025-09-06T23:16:58.130600 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:16:58.130600 -    [Thread 2] Type: ping_web
+2025-09-06T23:16:58.131601 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:16:58.132601 - 
+📊 [Thread 2] Check #1 at 23:16:58
+2025-09-06T23:16:58.542329 - 
+📊 [Main Manager] Cycle #337 at 23:16:58
+2025-09-06T23:16:58.542329 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:16:58.543328 -    🏃 Running: 1 threads [2]
+2025-09-06T23:16:58.843820 -    [Thread 2] ✅ SUCCESS | 707.23ms | Test abc11 (ping_web)
+2025-09-06T23:17:08.243137 - 
+🔄 [Thread 2] Configuration changes detected for Test abc11:
+2025-09-06T23:17:08.243137 -    - enable: True -> False
+2025-09-06T23:17:08.244130 - 🛑 [Thread 2] Stopping thread due to config changes after 1 checks.
+2025-09-06T23:17:08.245133 - 🧹 [Thread 2] Thread cleanup completed for Test abc11
+2025-09-06T23:17:08.745204 - 💀 [Main] Force stopping thread: Test abc11 (ID: 2)
+2025-09-06T23:17:18.758467 - ⚠️ [Main] Thread 2 did not stop within timeout (may need process restart)
+2025-09-06T23:17:23.760480 - 🔧 [Main] Starting thread for: Test abc11 (ID: 2)
+2025-09-06T23:17:23.761464 - 🚀 [Thread 2] Starting monitoring for: Test abc11
+2025-09-06T23:17:23.762461 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:17:23.763461 -    [Thread 2] Type: ping_web
+2025-09-06T23:17:23.763461 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:17:23.764460 - 
+📊 [Thread 2] Check #1 at 23:17:23
+2025-09-06T23:17:24.511899 -    [Thread 2] ✅ SUCCESS | 744.44ms | Test abc11 (ping_web)
+2025-09-06T23:17:33.805153 - 
+🔄 [Thread 2] Configuration changes detected for Test abc11:
+2025-09-06T23:17:33.805153 -    - name: Test abc11 -> Test abc112
+2025-09-06T23:17:33.806138 - 🛑 [Thread 2] Stopping thread due to config changes after 1 checks.
+2025-09-06T23:17:33.807152 - 🧹 [Thread 2] Thread cleanup completed for Test abc11
+2025-09-06T23:17:34.083621 - 🔧 [Main] Starting thread for: Test abc112 (ID: 2)
+2025-09-06T23:17:34.085641 - 🚀 [Thread 2] Starting monitoring for: Test abc112
+2025-09-06T23:17:34.085641 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:17:34.086624 -    [Thread 2] Type: ping_web
+2025-09-06T23:17:34.087622 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:17:34.087622 - 
+📊 [Thread 2] Check #1 at 23:17:34
+2025-09-06T23:17:34.699236 -    [Thread 2] ✅ SUCCESS | 608.62ms | Test abc112 (ping_web)
+2025-09-06T23:17:49.471486 - 📊 [Thread 2] Checking at 23:17:49
+2025-09-06T23:17:49.472487 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:17:49.472487 -    Type: ping_web
+2025-09-06T23:17:49.473489 -    URL: https://mytree.vn
+2025-09-06T23:17:49.474504 -    Check interval: 60s
+2025-09-06T23:17:49.474504 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:17:50.062735 -    ✅ HTTP request successful (Status: 200, Time: 584.24ms)
+2025-09-06T23:17:50.063730 -    [Thread 2] ✅ SUCCESS | 584.24ms | Test abc112
+2025-09-06T23:17:59.727195 - 
+📊 [Main Manager] Cycle #13 at 23:17:59
+2025-09-06T23:17:59.728195 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:17:59.728195 -    🏃 Running: 1 threads [2]
+2025-09-06T23:18:09.737609 - 
+📊 [Main Manager] Cycle #349 at 23:18:09
+2025-09-06T23:18:09.737609 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:18:09.738627 -    🏃 Running: 1 threads [2]
+2025-09-06T23:18:36.861980 - 
+📊 [Thread 2] Check #2 at 23:18:36
+2025-09-06T23:18:37.575840 -    [Thread 2] ✅ SUCCESS | 709.86ms | Test abc112 (ping_web)
+2025-09-06T23:18:50.163884 - 📊 [Thread 2] Checking at 23:18:50
+2025-09-06T23:18:50.164883 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:18:50.165883 -    Type: ping_web
+2025-09-06T23:18:50.165883 -    URL: https://mytree.vn
+2025-09-06T23:18:50.166880 -    Check interval: 60s
+2025-09-06T23:18:50.167901 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:18:50.770629 -    ✅ HTTP request successful (Status: 200, Time: 600.73ms)
+2025-09-06T23:18:50.770629 -    [Thread 2] ✅ SUCCESS | 600.73ms | Test abc112
+2025-09-06T23:19:00.950790 - 
+📊 [Main Manager] Cycle #25 at 23:19:00
+2025-09-06T23:19:00.951771 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:19:00.951771 -    🏃 Running: 1 threads [2]
+2025-09-06T23:19:10.935912 - 
+📊 [Main Manager] Cycle #361 at 23:19:10
+2025-09-06T23:19:10.935912 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:19:10.936909 -    🏃 Running: 1 threads [2]
+2025-09-06T23:19:39.715574 - 
+📊 [Thread 2] Check #3 at 23:19:39
+2025-09-06T23:19:40.313594 -    [Thread 2] ✅ SUCCESS | 595.00ms | Test abc112 (ping_web)
+2025-09-06T23:19:50.866811 - 📊 [Thread 2] Checking at 23:19:50
+2025-09-06T23:19:50.867810 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:19:50.868810 -    Type: ping_web
+2025-09-06T23:19:50.869812 -    URL: https://mytree.vn
+2025-09-06T23:19:50.869812 -    Check interval: 60s
+2025-09-06T23:19:50.870809 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:19:51.493656 -    ✅ HTTP request successful (Status: 200, Time: 618.85ms)
+2025-09-06T23:19:51.493656 -    [Thread 2] ✅ SUCCESS | 618.85ms | Test abc112
+2025-09-06T23:20:02.225012 - 
+📊 [Main Manager] Cycle #37 at 23:20:02
+2025-09-06T23:20:02.225012 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:20:02.225987 -    🏃 Running: 1 threads [2]
+2025-09-06T23:20:12.337152 - 
+📊 [Main Manager] Cycle #373 at 23:20:12
+2025-09-06T23:20:12.337152 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:20:12.338135 -    🏃 Running: 1 threads [2]
+2025-09-06T23:20:32.836088 - 
+🛑 [Main Manager] Shutting down after 42 cycles...
+2025-09-06T23:20:32.837085 - 🛑 [Main Manager] Stopping all monitor threads...
+2025-09-06T23:20:32.837085 - 🧹 [Thread 2] Thread cleanup completed for Test abc112
+2025-09-06T23:20:32.838082 - ✅ [Main Manager] All threads stopped. Manager shutdown complete.
+2025-09-06T23:20:36.168887 - 🚀 Starting Main Thread Manager...
+2025-09-06T23:20:36.169869 -    ⏰ Check interval: 5 seconds
+2025-09-06T23:20:36.170869 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T23:20:36.170869 - ================================================================================
+2025-09-06T23:20:36.385045 - 
+📊 [Main Manager] Cycle #1 at 23:20:36
+2025-09-06T23:20:36.385045 -    💾 DB Enabled: 1 items [2]
+2025-09-06T23:20:36.386043 -    🏃 Running: 0 threads []
+2025-09-06T23:20:36.386043 -    ➕ Need to start: [2]
+2025-09-06T23:20:36.386043 - 🔧 [Main] Starting thread for: Test abc112 (ID: 2)
+2025-09-06T23:20:36.388043 - 🚀 [Thread 2] Starting monitoring for: Test abc112
+2025-09-06T23:20:36.389063 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:20:36.390043 -    [Thread 2] Type: ping_web
+2025-09-06T23:20:36.391042 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:20:36.391042 - 
+📊 [Thread 2] Check #1 at 23:20:36
+2025-09-06T23:20:37.032808 -    [Thread 2] ✅ SUCCESS | 637.77ms | Test abc112 (ping_web)
+2025-09-06T23:20:41.588261 - 🔧 [Main] Starting thread for: Test1 (ID: 1)
+2025-09-06T23:20:41.589245 - 🚀 [Thread 1] Starting monitoring for: Test1
+2025-09-06T23:20:41.590262 -    [Thread 1] Check interval: 60 seconds
+2025-09-06T23:20:41.591245 -    [Thread 1] Type: ping_icmp
+2025-09-06T23:20:41.591245 -    [Thread 1] Monitoring config changes...
+2025-09-06T23:20:41.592247 - 
+📊 [Thread 1] Check #1 at 23:20:41
+2025-09-06T23:20:41.738392 -    [Thread 1] ✅ SUCCESS | 144.24ms | Test1 (ping_icmp)
+2025-09-06T23:20:42.948409 - 🔧 [Main] Starting thread for: Test1 (ID: 1)
+2025-09-06T23:20:42.949394 - 🚀 [Thread 1] Started monitoring: Test1
+2025-09-06T23:20:42.950392 -    [Thread 1] Type: ping_icmp
+2025-09-06T23:20:42.950392 -    [Thread 1] URL: https://glx.com.vn
+2025-09-06T23:20:43.042445 - 📊 [Thread 1] Checking at 23:20:43
+2025-09-06T23:20:43.043363 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:20:43.044366 -    Type: ping_icmp
+2025-09-06T23:20:43.044366 -    URL: https://glx.com.vn
+2025-09-06T23:20:43.045363 -    Check interval: 60s
+2025-09-06T23:20:43.046365 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:20:43.072373 -    ✅ Ping successful (Time: 26.01ms)
+2025-09-06T23:20:43.073353 -    [Thread 1] ✅ SUCCESS | 26.01ms | Test1
+2025-09-06T23:20:51.599897 - 📊 [Thread 2] Checking at 23:20:51
+2025-09-06T23:20:51.600812 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:20:51.601828 -    Type: ping_web
+2025-09-06T23:20:51.602813 -    URL: https://mytree.vn
+2025-09-06T23:20:51.602813 -    Check interval: 60s
+2025-09-06T23:20:51.603828 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:20:52.531032 -    ✅ HTTP request successful (Status: 200, Time: 923.22ms)
+2025-09-06T23:20:52.532051 -    [Thread 2] ✅ SUCCESS | 923.22ms | Test abc112
+2025-09-06T23:21:13.668034 - 
+📊 [Main Manager] Cycle #385 at 23:21:13
+2025-09-06T23:21:13.669017 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:21:13.670018 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:21:23.663668 - ❌ No monitor threads are currently running
+2025-09-06T23:21:37.901952 - 
+📊 [Main Manager] Cycle #13 at 23:21:37
+2025-09-06T23:21:37.901952 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:21:37.902936 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:21:39.409727 - 
+📊 [Thread 2] Check #2 at 23:21:39
+2025-09-06T23:21:40.108346 -    [Thread 2] ✅ SUCCESS | 694.64ms | Test abc112 (ping_web)
+2025-09-06T23:21:42.350679 - ❌ No monitor threads are currently running
+2025-09-06T23:21:43.169931 - 📊 [Thread 1] Checking at 23:21:43
+2025-09-06T23:21:43.170928 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:21:43.170928 -    Type: ping_icmp
+2025-09-06T23:21:43.171932 -    URL: https://glx.com.vn
+2025-09-06T23:21:43.171932 -    Check interval: 60s
+2025-09-06T23:21:43.172930 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:21:43.200982 -    ✅ Ping successful (Time: 28.05ms)
+2025-09-06T23:21:43.201968 -    [Thread 1] ✅ SUCCESS | 28.05ms | Test1
+2025-09-06T23:21:43.854755 - 
+📊 [Thread 1] Check #2 at 23:21:43
+2025-09-06T23:21:43.893722 -    [Thread 1] ✅ SUCCESS | 37.98ms | Test1 (ping_icmp)
+2025-09-06T23:21:52.630814 - 📊 [Thread 2] Checking at 23:21:52
+2025-09-06T23:21:52.631811 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:21:52.631811 -    Type: ping_web
+2025-09-06T23:21:52.632815 -    URL: https://mytree.vn
+2025-09-06T23:21:52.633812 -    Check interval: 60s
+2025-09-06T23:21:52.633812 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:21:53.386050 -    ✅ HTTP request successful (Status: 200, Time: 747.22ms)
+2025-09-06T23:21:53.387040 -    [Thread 2] ✅ SUCCESS | 747.22ms | Test abc112
+2025-09-06T23:22:14.803700 - 
+📊 [Main Manager] Cycle #397 at 23:22:14
+2025-09-06T23:22:14.803700 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:22:14.804685 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:22:39.141464 - 
+📊 [Main Manager] Cycle #25 at 23:22:39
+2025-09-06T23:22:39.142479 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:22:39.142479 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:22:42.205721 - 
+📊 [Thread 2] Check #3 at 23:22:42
+2025-09-06T23:22:42.942546 -    [Thread 2] ✅ SUCCESS | 732.82ms | Test abc112 (ping_web)
+2025-09-06T23:22:43.308171 - 📊 [Thread 1] Checking at 23:22:43
+2025-09-06T23:22:43.309169 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:22:43.310172 -    Type: ping_icmp
+2025-09-06T23:22:43.311185 -    URL: https://glx.com.vn
+2025-09-06T23:22:43.311185 -    Check interval: 60s
+2025-09-06T23:22:43.312169 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:22:43.449079 -    ✅ Ping successful (Time: 136.91ms)
+2025-09-06T23:22:43.450078 -    [Thread 1] ✅ SUCCESS | 136.91ms | Test1
+2025-09-06T23:22:45.903522 - 
+📊 [Thread 1] Check #3 at 23:22:45
+2025-09-06T23:22:45.938523 -    [Thread 1] ✅ SUCCESS | 34.01ms | Test1 (ping_icmp)
+2025-09-06T23:22:53.489971 - 📊 [Thread 2] Checking at 23:22:53
+2025-09-06T23:22:53.490967 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:22:53.491951 -    Type: ping_web
+2025-09-06T23:22:53.492950 -    URL: https://mytree.vn
+2025-09-06T23:22:53.492950 -    Check interval: 60s
+2025-09-06T23:22:53.493950 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:22:54.080439 -    ✅ HTTP request successful (Status: 200, Time: 583.49ms)
+2025-09-06T23:22:54.080439 -    [Thread 2] ✅ SUCCESS | 583.49ms | Test abc112
+2025-09-06T23:23:16.126883 - 
+📊 [Main Manager] Cycle #409 at 23:23:16
+2025-09-06T23:23:16.127883 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:23:16.127883 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:23:40.344131 - 
+📊 [Main Manager] Cycle #37 at 23:23:40
+2025-09-06T23:23:40.344131 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:23:40.345111 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:23:42.400139 - 
+📊 [Thread 2] Check #4 at 23:23:42
+2025-09-06T23:23:43.052102 -    [Thread 2] ✅ SUCCESS | 647.95ms | Test abc112 (ping_web)
+2025-09-06T23:23:43.550169 - 📊 [Thread 1] Checking at 23:23:43
+2025-09-06T23:23:43.551169 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:23:43.552152 -    Type: ping_icmp
+2025-09-06T23:23:43.552152 -    URL: https://glx.com.vn
+2025-09-06T23:23:43.552152 -    Check interval: 60s
+2025-09-06T23:23:43.553160 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:23:43.581142 -    ✅ Ping successful (Time: 27.00ms)
+2025-09-06T23:23:43.581142 -    [Thread 1] ✅ SUCCESS | 27.00ms | Test1
+2025-09-06T23:23:48.469890 - 
+📊 [Thread 1] Check #4 at 23:23:48
+2025-09-06T23:23:48.503578 -    [Thread 1] ✅ SUCCESS | 33.01ms | Test1 (ping_icmp)
+2025-09-06T23:23:54.197650 - 📊 [Thread 2] Checking at 23:23:54
+2025-09-06T23:23:54.198880 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:23:54.199646 -    Type: ping_web
+2025-09-06T23:23:54.200664 -    URL: https://mytree.vn
+2025-09-06T23:23:54.200664 -    Check interval: 60s
+2025-09-06T23:23:54.201646 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:23:55.012276 -    ✅ HTTP request successful (Status: 200, Time: 806.63ms)
+2025-09-06T23:23:55.013268 -    [Thread 2] ✅ SUCCESS | 806.63ms | Test abc112
+2025-09-06T23:24:17.540662 - 
+📊 [Main Manager] Cycle #421 at 23:24:17
+2025-09-06T23:24:17.541662 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:24:17.542661 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:24:41.563648 - 
+📊 [Main Manager] Cycle #49 at 23:24:41
+2025-09-06T23:24:41.563648 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:24:41.564646 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:24:43.680645 - 📊 [Thread 1] Checking at 23:24:43
+2025-09-06T23:24:43.681623 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:24:43.681623 -    Type: ping_icmp
+2025-09-06T23:24:43.682624 -    URL: https://glx.com.vn
+2025-09-06T23:24:43.682624 -    Check interval: 60s
+2025-09-06T23:24:43.683624 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:24:43.823829 -    ✅ Ping successful (Time: 139.20ms)
+2025-09-06T23:24:43.824832 -    [Thread 1] ✅ SUCCESS | 139.20ms | Test1
+2025-09-06T23:24:45.183784 - 
+📊 [Thread 2] Check #5 at 23:24:45
+2025-09-06T23:24:45.913604 -    [Thread 2] ✅ SUCCESS | 725.84ms | Test abc112 (ping_web)
+2025-09-06T23:24:50.641920 - 
+📊 [Thread 1] Check #5 at 23:24:50
+2025-09-06T23:24:50.665899 -    [Thread 1] ✅ SUCCESS | 23.98ms | Test1 (ping_icmp)
+2025-09-06T23:24:55.138672 - 📊 [Thread 2] Checking at 23:24:55
+2025-09-06T23:24:55.139669 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:24:55.140670 -    Type: ping_web
+2025-09-06T23:24:55.141650 -    URL: https://mytree.vn
+2025-09-06T23:24:55.141650 -    Check interval: 60s
+2025-09-06T23:24:55.142652 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:24:55.827639 -    ✅ HTTP request successful (Status: 200, Time: 681.99ms)
+2025-09-06T23:24:55.828639 -    [Thread 2] ✅ SUCCESS | 681.99ms | Test abc112
+2025-09-06T23:25:18.789658 - 
+📊 [Main Manager] Cycle #433 at 23:25:18
+2025-09-06T23:25:18.790657 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:25:18.790657 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:25:42.878681 - 
+📊 [Main Manager] Cycle #61 at 23:25:42
+2025-09-06T23:25:42.879662 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:25:42.880662 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:25:43.926303 - 📊 [Thread 1] Checking at 23:25:43
+2025-09-06T23:25:43.926303 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:25:43.927286 -    Type: ping_icmp
+2025-09-06T23:25:43.927286 -    URL: https://glx.com.vn
+2025-09-06T23:25:43.928286 -    Check interval: 60s
+2025-09-06T23:25:43.928286 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:25:43.962293 -    ✅ Ping successful (Time: 34.01ms)
+2025-09-06T23:25:43.963276 -    [Thread 1] ✅ SUCCESS | 34.01ms | Test1
+2025-09-06T23:25:48.212793 - 
+📊 [Thread 2] Check #6 at 23:25:48
+2025-09-06T23:25:48.940858 -    [Thread 2] ✅ SUCCESS | 724.09ms | Test abc112 (ping_web)
+2025-09-06T23:25:52.715604 - 
+📊 [Thread 1] Check #6 at 23:25:52
+2025-09-06T23:25:52.752590 -    [Thread 1] ✅ SUCCESS | 35.99ms | Test1 (ping_icmp)
+2025-09-06T23:25:55.903386 - 📊 [Thread 2] Checking at 23:25:55
+2025-09-06T23:25:55.904382 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:25:55.905365 -    Type: ping_web
+2025-09-06T23:25:55.905365 -    URL: https://mytree.vn
+2025-09-06T23:25:55.906365 -    Check interval: 60s
+2025-09-06T23:25:55.907382 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:25:56.643786 -    ✅ HTTP request successful (Status: 200, Time: 733.41ms)
+2025-09-06T23:25:56.644773 -    [Thread 2] ✅ SUCCESS | 733.41ms | Test abc112
+2025-09-06T23:26:20.094540 - 
+📊 [Main Manager] Cycle #445 at 23:26:20
+2025-09-06T23:26:20.095542 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:26:20.095542 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:26:44.058980 - 📊 [Thread 1] Checking at 23:26:44
+2025-09-06T23:26:44.059995 - 
+🔍 Checking service: Test1 (ID: 1)
+2025-09-06T23:26:44.060992 -    Type: ping_icmp
+2025-09-06T23:26:44.061975 -    URL: https://glx.com.vn
+2025-09-06T23:26:44.061975 -    Check interval: 60s
+2025-09-06T23:26:44.062990 -    🏓 Performing ICMP ping to: glx.com.vn
+2025-09-06T23:26:44.159700 - 
+📊 [Main Manager] Cycle #73 at 23:26:44
+2025-09-06T23:26:44.160699 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:26:44.161703 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:26:44.184691 -    ✅ Ping successful (Time: 121.70ms)
+2025-09-06T23:26:44.185691 -    [Thread 1] ✅ SUCCESS | 121.70ms | Test1
+2025-09-06T23:26:51.237033 - 
+📊 [Thread 2] Check #7 at 23:26:51
+2025-09-06T23:26:51.984868 -    [Thread 2] ✅ SUCCESS | 743.84ms | Test abc112 (ping_web)
+2025-09-06T23:26:54.752092 - 
+📊 [Thread 1] Check #7 at 23:26:54
+2025-09-06T23:26:54.789064 -    [Thread 1] ✅ SUCCESS | 34.99ms | Test1 (ping_icmp)
+2025-09-06T23:26:56.757005 - 📊 [Thread 2] Checking at 23:26:56
+2025-09-06T23:26:56.757990 - 
+🔍 Checking service: Test abc112 (ID: 2)
+2025-09-06T23:26:56.759003 -    Type: ping_web
+2025-09-06T23:26:56.759003 -    URL: https://mytree.vn
+2025-09-06T23:26:56.760003 -    Check interval: 60s
+2025-09-06T23:26:56.760003 -    🌐 Performing HTTP/HTTPS check...
+2025-09-06T23:26:57.519337 -    ✅ HTTP request successful (Status: 200, Time: 755.34ms)
+2025-09-06T23:26:57.520322 -    [Thread 2] ✅ SUCCESS | 755.34ms | Test abc112
+2025-09-06T23:27:16.203018 - 
+🛑 [Main Manager] Shutting down after 456 cycles...
+2025-09-06T23:27:16.204018 - 🛑 [Main Manager] Stopping all monitor threads...
+2025-09-06T23:27:16.204018 - 🧹 [Thread 2] Cleaned up thread for: Test abc11
+2025-09-06T23:27:16.205004 - 🧹 [Thread 1] Cleaned up thread for: Test1
+2025-09-06T23:27:16.206005 - ✅ [Main Manager] All threads stopped. Manager shutdown complete.
+2025-09-06T23:27:18.923680 - 🚀 Starting Main Thread Manager...
+2025-09-06T23:27:18.923680 -    ⏰ Check interval: 5 seconds
+2025-09-06T23:27:18.923680 -    🔄 Auto-manage monitor threads based on database
+2025-09-06T23:27:18.924666 - ================================================================================
+2025-09-06T23:27:19.093046 - 
+📊 [Main Manager] Cycle #1 at 23:27:18
+2025-09-06T23:27:19.093046 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:27:19.094045 -    🏃 Running: 0 threads []
+2025-09-06T23:27:19.094045 -    ➕ Need to start: [1, 2]
+2025-09-06T23:27:19.094045 - 🔧 [Main] Starting thread for: Test1 (ID: 1)
+2025-09-06T23:27:19.096042 - 🚀 [Thread 1] Starting monitoring for: Test1
+2025-09-06T23:27:19.097042 -    [Thread 1] Check interval: 60 seconds
+2025-09-06T23:27:19.098042 -    [Thread 1] Type: ping_icmp
+2025-09-06T23:27:19.098042 -    [Thread 1] Monitoring config changes...
+2025-09-06T23:27:19.099042 - 
+📊 [Thread 1] Check #1 at 23:27:19
+2025-09-06T23:27:19.132030 -    [Thread 1] ✅ SUCCESS | 31.01ms | Test1 (ping_icmp)
+2025-09-06T23:27:19.204007 - 🔧 [Main] Starting thread for: Test abc112 (ID: 2)
+2025-09-06T23:27:19.205007 - 🚀 [Thread 2] Starting monitoring for: Test abc112
+2025-09-06T23:27:19.205007 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:27:19.206009 -    [Thread 2] Type: ping_web
+2025-09-06T23:27:19.206009 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:27:19.206009 - 
+📊 [Thread 2] Check #1 at 23:27:19
+2025-09-06T23:27:20.035230 -    [Thread 2] ✅ SUCCESS | 826.24ms | Test abc112 (ping_web)
+2025-09-06T23:27:24.407070 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:27:24.408052 -    🕒 Running Thread 2 started at 2025-09-06 23:27:19.204007
+2025-09-06T23:27:29.507534 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:27:29.508532 -    🕒 Running Thread 2 started at 2025-09-06 23:27:19.204007
+2025-09-06T23:27:34.587818 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:27:34.587818 -    🕒 Running Thread 2 started at 2025-09-06 23:27:19.204007
+2025-09-06T23:27:39.688646 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:27:39.689645 -    🕒 Running Thread 2 started at 2025-09-06 23:27:19.204007
+2025-09-06T23:27:40.339627 - 💀 [Main] Force stopping thread: Test abc112 (ID: 2)
+2025-09-06T23:27:41.491585 - 
+🛑 [Thread 2] Received stop signal from MainThread
+2025-09-06T23:27:41.771750 - 
+🔄 [Thread 2] Configuration changes detected for Test abc112:
+2025-09-06T23:27:41.771750 -    - enable: True -> False
+2025-09-06T23:27:41.772749 - 🛑 [Thread 2] Stopping thread due to config changes after 1 checks.
+2025-09-06T23:27:41.773751 - 🧹 [Thread 2] Thread cleanup completed for Test abc112
+2025-09-06T23:27:44.788972 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:27:49.895964 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:27:50.346900 - ⚠️ [Main] Thread 2 did not stop within timeout (may need process restart)
+2025-09-06T23:27:50.347883 - 🧹 [Thread 2] Thread cleanup completed for Test abc112
+2025-09-06T23:27:54.992600 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:27:55.441640 - 
+📊 [Main Manager] Cycle #85 at 23:27:55
+2025-09-06T23:27:55.441640 -    💾 DB Enabled: 1 items [1]
+2025-09-06T23:27:55.442556 -    🏃 Running: 1 threads [1]
+2025-09-06T23:27:56.892581 - 
+📊 [Thread 1] Check #8 at 23:27:56
+2025-09-06T23:27:56.922572 -    [Thread 1] ✅ SUCCESS | 28.01ms | Test1 (ping_icmp)
+2025-09-06T23:28:00.075539 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:28:00.076520 - 🔧 [Main] Starting thread for: Test abc112 (ID: 2)
+2025-09-06T23:28:00.077520 - 🚀 [Thread 2] Starting monitoring for: Test abc112
+2025-09-06T23:28:00.078520 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:28:00.079519 -    [Thread 2] Type: ping_web
+2025-09-06T23:28:00.079519 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:28:00.080521 - 
+📊 [Thread 2] Check #1 at 23:28:00
+2025-09-06T23:28:00.542731 - 🔧 [Main] Starting thread for: Test abc112 (ID: 2)
+2025-09-06T23:28:00.543730 - 🚀 [Thread 2] Starting monitoring for: Test abc112
+2025-09-06T23:28:00.544731 -    [Thread 2] Check interval: 60 seconds
+2025-09-06T23:28:00.544731 -    [Thread 2] Type: ping_web
+2025-09-06T23:28:00.545732 -    [Thread 2] Monitoring config changes...
+2025-09-06T23:28:00.546731 - 
+📊 [Thread 2] Check #1 at 23:28:00
+2025-09-06T23:28:00.921378 -    [Thread 2] ✅ SUCCESS | 835.86ms | Test abc112 (ping_web)
+2025-09-06T23:28:01.289408 -    [Thread 2] ✅ SUCCESS | 738.68ms | Test abc112 (ping_web)
+2025-09-06T23:28:05.294639 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:28:05.295622 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:10.423877 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:28:10.424877 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:15.485031 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:28:15.485031 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:20.592123 -    🕒 Running Thread 1 started at 2025-09-06 23:27:19.094045
+2025-09-06T23:28:20.592123 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:20.593106 - 
+📊 [Main Manager] Cycle #13 at 23:28:20
+2025-09-06T23:28:20.593106 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:28:20.594121 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:28:21.321583 - 
+🔄 [Thread 1] Configuration changes detected for Test1:
+2025-09-06T23:28:21.321583 -    - timeRangeSeconds: 60 -> 300
+2025-09-06T23:28:21.322582 - 🛑 [Thread 1] Stopping thread due to config changes after 1 checks.
+2025-09-06T23:28:21.322582 - 🧹 [Thread 1] Thread cleanup completed for Test1
+2025-09-06T23:28:21.743663 - 
+🔄 [Thread 1] Configuration changes detected for Test1:
+2025-09-06T23:28:21.744664 -    - timeRangeSeconds: 60 -> 300
+2025-09-06T23:28:21.744664 - 🛑 [Thread 1] Stopping thread due to config changes after 8 checks.
+2025-09-06T23:28:21.745647 - 🧹 [Thread 1] Thread cleanup completed for Test1
+2025-09-06T23:28:25.787681 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:25.788187 - 🔧 [Main] Starting thread for: Test1 (ID: 1)
+2025-09-06T23:28:25.789211 - 🚀 [Thread 1] Starting monitoring for: Test1
+2025-09-06T23:28:25.790208 -    [Thread 1] Check interval: 300 seconds
+2025-09-06T23:28:25.791208 -    [Thread 1] Type: ping_icmp
+2025-09-06T23:28:25.791208 -    [Thread 1] Monitoring config changes...
+2025-09-06T23:28:25.792212 - 
+📊 [Thread 1] Check #1 at 23:28:25
+2025-09-06T23:28:25.822197 -    [Thread 1] ✅ SUCCESS | 28.01ms | Test1 (ping_icmp)
+2025-09-06T23:28:26.116306 - 🔧 [Main] Starting thread for: Test1 (ID: 1)
+2025-09-06T23:28:26.117307 - 🚀 [Thread 1] Starting monitoring for: Test1
+2025-09-06T23:28:26.117307 -    [Thread 1] Check interval: 300 seconds
+2025-09-06T23:28:26.118307 -    [Thread 1] Type: ping_icmp
+2025-09-06T23:28:26.119309 -    [Thread 1] Monitoring config changes...
+2025-09-06T23:28:26.119309 - 
+📊 [Thread 1] Check #1 at 23:28:26
+2025-09-06T23:28:26.144310 -    [Thread 1] ✅ SUCCESS | 23.01ms | Test1 (ping_icmp)
+2025-09-06T23:28:30.993966 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:30.993966 -    🕒 Running Thread 1 started at 2025-09-06 23:28:25.788187
+2025-09-06T23:28:36.096947 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:36.098021 -    🕒 Running Thread 1 started at 2025-09-06 23:28:25.788187
+2025-09-06T23:28:41.205498 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:41.206513 -    🕒 Running Thread 1 started at 2025-09-06 23:28:25.788187
+2025-09-06T23:28:46.309504 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:46.310483 -    🕒 Running Thread 1 started at 2025-09-06 23:28:25.788187
+2025-09-06T23:28:51.411799 -    🕒 Running Thread 2 started at 2025-09-06 23:28:00.076520
+2025-09-06T23:28:51.412817 -    🕒 Running Thread 1 started at 2025-09-06 23:28:25.788187
+2025-09-06T23:28:56.419179 - 
+🛑 [Main Manager] Shutting down after 19 cycles...
+2025-09-06T23:28:56.420183 - 🛑 [Main Manager] Stopping all monitor threads...
+2025-09-06T23:28:56.420183 - 🧹 [Thread 1] Thread cleanup completed for Test1
+2025-09-06T23:28:56.421165 - 🧹 [Thread 2] Thread cleanup completed for Test abc112
+2025-09-06T23:28:56.422172 - ✅ [Main Manager] All threads stopped. Manager shutdown complete.
+2025-09-06T23:28:56.821352 - 
+📊 [Main Manager] Cycle #97 at 23:28:56
+2025-09-06T23:28:56.822339 -    💾 DB Enabled: 2 items [1, 2]
+2025-09-06T23:28:56.823336 -    🏃 Running: 2 threads [1, 2]
+2025-09-06T23:29:03.309862 - 
+📊 [Thread 2] Check #2 at 23:29:03
+2025-09-06T23:29:04.033174 -    [Thread 2] ✅ SUCCESS | 719.32ms | Test abc112 (ping_web)
