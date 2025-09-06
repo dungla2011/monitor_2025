@@ -1,0 +1,10 @@
+# Database connectivity
+sqlalchemy==2.0.23
+pymysql==1.1.0
+python-dotenv==1.0.0
+
+# Data manipulation and analysis
+pandas==2.1.4
+
+# Optional: For better MySQL support
+cryptography==41.0.7
