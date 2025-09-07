@@ -19,3 +19,8 @@ trường này sẽ là chuỗi 2 tham số cách nhau dấu phẩy: <bot_token>
 
 Vậy mỗi khi monitor một item trong monitor_items, thì hãy tìm ra alert_config để có thể gửi tin telegram nếu 2 tham số đó Có và hợp lệ (độ dài , format)
 
+----------------------------
+
+mỗi thread, nếu check_interval < 5 phút và nếu số lần lỗi lên tiếp là 10 (là sẽ gửi 10 lần alert telegram), thì sau lần thứ 10, sẽ giãn alert telegram ra 5 phút 1 lần (số 5 phút này có 1 biến global đặt, nếu =0 thì ko giãn, để bình thường)
+vậy cũng sẽ có biến count số lần lỗi liên tiếp của thread, và số lần lỗi liên tiếp này sẽ trở lại = 0 nếu Không còn lỗi, hoặc lúc start thread
+
