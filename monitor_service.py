@@ -152,6 +152,7 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
             result = send_telegram_alert(
                 bot_token=bot_token,
                 chat_id=chat_id,
+                url_admin=f"https://monitor.mytree.vn/member/monitor-item/edit/{monitor_item.id}",
                 service_name=monitor_item.name,
                 service_url=monitor_item.url_check,
                 error_message=enhanced_error_message
@@ -165,6 +166,7 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
                 bot_token=bot_token,
                 chat_id=chat_id,
                 service_name=monitor_item.name,
+                url_admin=f"https://monitor.mytree.vn/member/monitor-item/edit/{monitor_item.id}",
                 service_url=monitor_item.url_check,
                 response_time=response_time or 0
             )

@@ -61,6 +61,7 @@ def main():
     alert_result = send_telegram_alert(
         bot_token=bot_token,
         chat_id=chat_id,
+        url_admin="https://admin.example.com",
         service_name="Test Service",
         service_url="https://example.com",
         error_message="Connection timeout - this is a test alert"
@@ -76,6 +77,7 @@ def main():
         bot_token=bot_token,
         chat_id=chat_id,
         service_name="Test Service",
+        url_admin="https://admin.example.com",
         service_url="https://example.com",
         response_time=250.5
     )

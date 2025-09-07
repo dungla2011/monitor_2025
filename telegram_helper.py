@@ -93,7 +93,7 @@ def send_telegram_message(bot_token, chat_id, message):
             'response': None
         }
 
-def send_telegram_alert(bot_token, chat_id, service_name, service_url, error_message, check_time=None):
+def send_telegram_alert(bot_token, chat_id, service_name, url_admin, service_url, error_message, check_time=None):
     """
     Gửi cảnh báo monitor service đến Telegram
     
@@ -119,12 +119,13 @@ def send_telegram_alert(bot_token, chat_id, service_name, service_url, error_mes
 ❌ <b>Status:</b> DOWN
 ⚠️ <b>Error:</b> {error_message}
 🕒 <b>Time:</b> {check_time.strftime('%Y-%m-%d %H:%M:%S')}
+🔗 <b>Admin URL:</b> {url_admin}
 
 Please check the service immediately!"""
 
     return send_telegram_message(bot_token, chat_id, message)
 
-def send_telegram_recovery(bot_token, chat_id, service_name, service_url, response_time, check_time=None):
+def send_telegram_recovery(bot_token, chat_id, service_name, url_admin, service_url, response_time, check_time=None):
     """
     Gửi thông báo phục hồi service đến Telegram
     
@@ -150,6 +151,7 @@ def send_telegram_recovery(bot_token, chat_id, service_name, service_url, respon
 ✅ <b>Status:</b> UP
 ⚡ <b>Response Time:</b> {response_time:.2f}ms
 🕒 <b>Time:</b> {check_time.strftime('%Y-%m-%d %H:%M:%S')}
+🔗 <b>Admin URL:</b> {url_admin}
 
 Service is back online! 🎉"""
 
@@ -182,6 +184,7 @@ if __name__ == "__main__":
     alert_result = send_telegram_alert(
         bot_token=bot_token,
         chat_id=chat_id,
+        url_admin="https://admin.example.com",
         service_name="Test Service",
         service_url="https://example.com",
         error_message="Connection timeout"
