@@ -150,10 +150,10 @@ def ping_icmp(host, timeout=5):
             
             # Log chi tiết để debug
             ol1(f"❌ Ping command failed:")
-            ol1(f"   Command: {' '.join(cmd)}")
-            ol1(f"   Return code: {result.returncode}")
-            ol1(f"   STDOUT: {stdout_output}")
-            ol1(f"   STDERR: {stderr_output}")
+            # ol1(f"   Command: {' '.join(cmd)}")
+            # ol1(f"   Return code: {result.returncode}")
+            # ol1(f"   STDOUT: {stdout_output}")
+            # ol1(f"   STDERR: {stderr_output}")
             
             return False, None, f"Ping failed (code {result.returncode}): {stderr_output}"
             
