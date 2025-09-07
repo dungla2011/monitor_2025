@@ -32867,3 +32867,18 @@
 2025-09-07T18:58:11.989759 -   python monitor_service.py multi      - Monitor all enabled services (multi-threaded, legacy)
 2025-09-07T18:58:11.989759 -   python monitor_service.py status     - Show thread status
 2025-09-07T18:58:11.989759 -   python monitor_service.py all        - Check all enabled services once
+2025-09-07T19:32:35.339171 - ✅ Testing enabled monitor item: Test12 (ID: 1)
+2025-09-07T19:32:35.340186 -    URL: https://glx.com.vn
+2025-09-07T19:32:35.341187 -    Type: ping_icmp
+2025-09-07T19:32:35.341187 - ================================================================================
+2025-09-07T19:32:35.342169 - 
+🔍 Checking service: Test12 (ID: 1)
+2025-09-07T19:32:35.342169 -    Type: ping_icmp
+2025-09-07T19:32:35.343169 -    URL: https://glx.com.vn
+2025-09-07T19:32:35.344168 -    Check interval: 60s
+2025-09-07T19:32:35.344168 -    Retry policy: 3 attempts, 3s interval
+2025-09-07T19:32:35.345168 -    � ICMP ping to glx.com.vn (attempt 1/3)...
+2025-09-07T19:32:35.476319 -    ✅ Ping successful (Time: 131.15ms)
+2025-09-07T19:32:35.477338 - ================================================================================
+2025-09-07T19:32:35.478324 - 🏁 Test completed for: Test12
+2025-09-07T19:32:35.479322 -    Final result: ✅ SUCCESS | 131.15ms | Ping successful

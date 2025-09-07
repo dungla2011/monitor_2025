@@ -143,7 +143,7 @@ def send_telegram_recovery(bot_token, chat_id, service_name, service_url, respon
         check_time = datetime.now()
     
     # Format tin nhắn với HTML
-    message = f"""✅ <b>SERVICE RECOVERY</b> ✅
+    message = f"""✅ <b>SERVICE IS GOOD NOW</b> ✅
 
 📊 <b>Service:</b> {service_name}
 🌐 <b>URL:</b> {service_url}

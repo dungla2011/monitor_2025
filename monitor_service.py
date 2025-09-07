@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 from db_connection import engine
-from models import MonitorItem
+from models import MonitorItem, get_telegram_config_for_monitor_item
 from telegram_helper import send_telegram_alert, send_telegram_recovery
 
 # Load environment variables
@@ -39,6 +39,7 @@ def ol1(msg):
 def send_telegram_notification(monitor_item, is_error=True, error_message="", response_time=None):
     """
     Gửi thông báo Telegram khi có lỗi hoặc phục hồi với throttling
+    Sử dụng config từ database thay vì .env file
     
     Args:
         monitor_item: MonitorItem object
@@ -47,17 +48,26 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
         response_time (float): Thời gian phản hồi (ms) cho trường hợp phục hồi
     """
     try:
-        # Kiểm tra cấu hình Telegram
+        # Kiểm tra TELEGRAM_ENABLED từ .env (global setting)
         telegram_enabled = os.getenv('TELEGRAM_ENABLED', 'false').lower() == 'true'
         if not telegram_enabled:
             return
-            
-        bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        chat_id = os.getenv('TELEGRAM_CHAT_ID')
         
-        if not bot_token or not chat_id:
-            ol1("⚠️ Telegram credentials not configured in .env file")
-            return
+        # Lấy config Telegram cho monitor item này từ database
+        telegram_config = get_telegram_config_for_monitor_item(monitor_item.id)
+        
+        if not telegram_config:
+            # Fallback to .env config nếu không có trong database
+            bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            chat_id = os.getenv('TELEGRAM_CHAT_ID')
+            
+            if not bot_token or not chat_id:
+                ol1(f"⚠️ [Thread {monitor_item.id}] No Telegram config found (database or .env)")
+                return
+        else:
+            bot_token = telegram_config['bot_token']
+            chat_id = telegram_config['chat_id']
+            ol1(f"📱 [Thread {monitor_item.id}] Using database Telegram config")
         
         # Throttling logic - tránh spam notification
         current_time = time.time()
@@ -135,10 +145,22 @@ def ping_icmp(host, timeout=5):
         if result.returncode == 0:
             return True, response_time, "Ping successful"
         else:
-            return False, None, f"Ping failed: {result.stderr.strip()}"
+            stderr_output = result.stderr.strip() if result.stderr else "No error details"
+            stdout_output = result.stdout.strip() if result.stdout else ""
+            
+            # Log chi tiết để debug
+            ol1(f"❌ Ping command failed:")
+            ol1(f"   Command: {' '.join(cmd)}")
+            ol1(f"   Return code: {result.returncode}")
+            ol1(f"   STDOUT: {stdout_output}")
+            ol1(f"   STDERR: {stderr_output}")
+            
+            return False, None, f"Ping failed (code {result.returncode}): {stderr_output}"
             
     except subprocess.TimeoutExpired:
         return False, None, f"Ping timeout after {timeout} seconds"
+    except KeyboardInterrupt:
+        return False, None, "Ping interrupted by user (Ctrl+C)"
     except Exception as e:
         return False, None, f"Ping error: {str(e)}"
 

@@ -37,6 +37,132 @@ class MonitorItem(Base):
     def __repr__(self):
         return f"<MonitorItem(id={self.id}, name='{self.name}', type='{self.type}', enable={self.enable})>"
 
+class MonitorConfig(Base):
+    """
+    SQLAlchemy ORM model for monitor_configs table
+    """
+    __tablename__ = 'monitor_configs'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(255), nullable=True)
+    alert_type = Column(String(64), nullable=True)  # 'telegram', 'email', 'webhook', etc.
+    alert_config = Column(Text, nullable=True)  # JSON hoặc string config
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    
+    def __repr__(self):
+        return f"<MonitorConfig(id={self.id}, name='{self.name}', alert_type='{self.alert_type}')>"
+
+class MonitorAndConfig(Base):
+    """
+    SQLAlchemy ORM model for monitor_and_configs table (pivot table)
+    """
+    __tablename__ = 'monitor_and_configs'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    monitor_item_id = Column(Integer, nullable=False)
+    config_id = Column(Integer, nullable=False)
+    created_at = Column(DateTime, nullable=True)
+    
+    def __repr__(self):
+        return f"<MonitorAndConfig(id={self.id}, monitor_item_id={self.monitor_item_id}, config_id={self.config_id})>"
+
+def get_telegram_config_for_monitor_item(monitor_item_id):
+    """
+    Lấy cấu hình Telegram cho một monitor item
+    
+    Args:
+        monitor_item_id (int): ID của monitor item
+        
+    Returns:
+        dict: {'bot_token': str, 'chat_id': str} hoặc None nếu không tìm thấy
+    """
+    try:
+        session = SessionLocal()
+        
+        # Join 3 bảng để lấy telegram config
+        result = session.query(MonitorConfig.alert_config).join(
+            MonitorAndConfig, MonitorConfig.id == MonitorAndConfig.config_id
+        ).filter(
+            MonitorAndConfig.monitor_item_id == monitor_item_id,
+            MonitorConfig.alert_type == 'telegram'
+        ).first()
+        
+        session.close()
+        
+        if not result or not result.alert_config:
+            return None
+            
+        # Parse alert_config: <bot_token>,<chat_id>
+        alert_config = result.alert_config.strip()
+        
+        if ',' not in alert_config:
+            return None
+            
+        parts = alert_config.split(',', 1)  # Split thành 2 phần
+        if len(parts) != 2:
+            return None
+            
+        bot_token = parts[0].strip()
+        chat_id = parts[1].strip()
+        
+        # Validate format
+        if not bot_token or not chat_id:
+            return None
+            
+        # Validate bot_token format (should be like: 123456:ABC-DEF...)
+        if ':' not in bot_token:
+            return None
+            
+        # Validate chat_id (should be number or start with -)
+        if not (chat_id.lstrip('-').isdigit() or chat_id.startswith('@')):
+            return None
+            
+        return {
+            'bot_token': bot_token,
+            'chat_id': chat_id
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting telegram config for monitor item {monitor_item_id}: {e}")
+        return None
+
+def get_all_alert_configs_for_monitor_item(monitor_item_id):
+    """
+    Lấy tất cả cấu hình alert cho một monitor item
+    
+    Args:
+        monitor_item_id (int): ID của monitor item
+        
+    Returns:
+        list: Danh sách các config dict
+    """
+    try:
+        session = SessionLocal()
+        
+        results = session.query(MonitorConfig).join(
+            MonitorAndConfig, MonitorConfig.id == MonitorAndConfig.config_id
+        ).filter(
+            MonitorAndConfig.monitor_item_id == monitor_item_id
+        ).all()
+        
+        session.close()
+        
+        configs = []
+        for config in results:
+            configs.append({
+                'id': config.id,
+                'name': config.name,
+                'alert_type': config.alert_type,
+                'alert_config': config.alert_config
+            })
+            
+        return configs
+        
+    except Exception as e:
+        print(f"❌ Error getting alert configs for monitor item {monitor_item_id}: {e}")
+        return []
+
 # Create session factory
 SessionLocal = sessionmaker(bind=engine)
 

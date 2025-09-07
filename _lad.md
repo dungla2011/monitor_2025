@@ -5,3 +5,17 @@
 - MainThread nếu thấy Thread nào đang chạy mà trong DB có enable =0, thì sẽ Kill thread đang chạy đó (có vẻ như thead ko kill được nhau, nhưng cơ bản là muốn vậy)
 - các đoạn check_service có thể chia nhỏ thành các hàm riêng
 ví dụ check_ping_web, check_ping_icmp. Và bổ xung: check 3 lần mỗi lần cách nhau 3 giây, success thì dừng luôn
+
+----------------------------
+- Viết 1 hàm lấy ra <bot_token>,<chat_id> của một id trong monitor_items đang monitor, và dùng nó thay telegram token trong .env:
+
+2 bảng monitor_items và monitor_configs
+1 bảng monitor_and_configs : là bảng pivottable, 
+có monitor_item_id và config_id là id của 2 bảng monitor_items, monitor_configs
+
+- trong monitor_configs có trường  alert_type, nếu alert_type = 'telegram'
+thì hãy xem trường alert_config
+trường này sẽ là chuỗi 2 tham số cách nhau dấu phẩy: <bot_token>,<chat_id>
+
+Vậy mỗi khi monitor một item trong monitor_items, thì hãy tìm ra alert_config để có thể gửi tin telegram nếu 2 tham số đó Có và hợp lệ (độ dài , format)
+
