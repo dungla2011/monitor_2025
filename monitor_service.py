@@ -10,7 +10,7 @@ from datetime import datetime
 from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
 from db_connection import engine
-from models import MonitorItem, get_telegram_config_for_monitor_item
+from models import MonitorItem, get_telegram_config_for_monitor_item, is_alert_time_allowed
 from telegram_helper import send_telegram_alert, send_telegram_recovery
 
 # Load environment variables
@@ -102,6 +102,16 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
                 consecutive_errors = thread_consecutive_errors[thread_id]
                 thread_consecutive_errors[thread_id] = 0
                 ol1(f"✅ [Thread {thread_id}] Service recovered! Reset consecutive error count (was: {consecutive_errors})")
+        
+        # Kiểm tra user alert time settings trước khi gửi
+        user_id = monitor_item.user_id if monitor_item.user_id else 0
+        is_allowed, reason = is_alert_time_allowed(user_id)
+        
+        if not is_allowed:
+            ol1(f"🔕 [Thread {thread_id}] Alert blocked for user {user_id}: {reason}")
+            return
+        else:
+            ol1(f"✅ [Thread {thread_id}] Alert allowed for user {user_id}: {reason}")
         
         # Lấy config Telegram
         telegram_config = get_telegram_config_for_monitor_item(monitor_item.id)
