@@ -3,18 +3,29 @@ import requests
 import subprocess
 import platform
 import threading
+import os
+import sys
 from urllib.parse import urlparse
 from datetime import datetime
 from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 from db_connection import engine
 from models import MonitorItem
+from telegram_helper import send_telegram_alert, send_telegram_recovery
+
+# Load environment variables
+load_dotenv()
 
 
 # Global dictionary để track running threads
-running_threads = {}
+running_threads = {} 
 thread_lock = threading.Lock()
 shutdown_event = threading.Event()  # Event để signal shutdown
 stop_flags = {}  # Dictionary để signal stop cho từng thread riêng biệt
+
+# Telegram notification throttling
+telegram_last_sent = {}  # Dictionary để track thời gian gửi Telegram cuối cùng
+TELEGRAM_THROTTLE_SECONDS = 30  # 5 phút giữa các notification giống nhau
 
 # Create session factory
 SessionLocal = sessionmaker(bind=engine)
@@ -24,6 +35,71 @@ def ol1(msg):
     # Ghi log ra file với utf-8 encoding:
     with open("log.txt", "a", encoding="utf-8") as f:
         f.write(f"{datetime.now().isoformat()} - {msg}\n")
+
+def send_telegram_notification(monitor_item, is_error=True, error_message="", response_time=None):
+    """
+    Gửi thông báo Telegram khi có lỗi hoặc phục hồi với throttling
+    
+    Args:
+        monitor_item: MonitorItem object
+        is_error (bool): True nếu là lỗi, False nếu là phục hồi
+        error_message (str): Thông báo lỗi
+        response_time (float): Thời gian phản hồi (ms) cho trường hợp phục hồi
+    """
+    try:
+        # Kiểm tra cấu hình Telegram
+        telegram_enabled = os.getenv('TELEGRAM_ENABLED', 'false').lower() == 'true'
+        if not telegram_enabled:
+            return
+            
+        bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+        chat_id = os.getenv('TELEGRAM_CHAT_ID')
+        
+        if not bot_token or not chat_id:
+            ol1("⚠️ Telegram credentials not configured in .env file")
+            return
+        
+        # Throttling logic - tránh spam notification
+        current_time = time.time()
+        notification_key = f"{monitor_item.name}_{monitor_item.id}_{is_error}"
+        
+        if notification_key in telegram_last_sent:
+            time_since_last = current_time - telegram_last_sent[notification_key]
+            if time_since_last < TELEGRAM_THROTTLE_SECONDS:
+                remaining = TELEGRAM_THROTTLE_SECONDS - time_since_last
+                ol1(f"🔇 [Thread {monitor_item.id}] Telegram notification throttled ({remaining:.0f}s remaining)")
+                return
+        
+        # Cập nhật thời gian gửi cuối cùng
+        telegram_last_sent[notification_key] = current_time
+            
+        if is_error:
+            result = send_telegram_alert(
+                bot_token=bot_token,
+                chat_id=chat_id,
+                service_name=monitor_item.name,
+                service_url=monitor_item.url_check,
+                error_message=error_message
+            )
+            if result['success']:
+                ol1(f"📱 [Thread {monitor_item.id}] Telegram alert sent successfully")
+            else:
+                ol1(f"❌ [Thread {monitor_item.id}] Telegram alert failed: {result['message']}")
+        else:
+            result = send_telegram_recovery(
+                bot_token=bot_token,
+                chat_id=chat_id,
+                service_name=monitor_item.name,
+                service_url=monitor_item.url_check,
+                response_time=response_time or 0
+            )
+            if result['success']:
+                ol1(f"📱 [Thread {monitor_item.id}] Telegram recovery notification sent successfully")
+            else:
+                ol1(f"❌ [Thread {monitor_item.id}] Telegram recovery notification failed: {result['message']}")
+                
+    except Exception as e:
+        ol1(f"❌ [Thread {monitor_item.id}] Telegram notification error: {e}")
 
 
 def extract_domain_from_url(url):
@@ -92,9 +168,103 @@ def ping_web(url, timeout=10):
     except Exception as e:
         return False, None, None, f"Unexpected error: {str(e)}"
 
+def check_ping_web(monitor_item, attempt=1, max_attempts=3):
+    """
+    Kiểm tra HTTP/HTTPS service với retry logic
+    
+    Args:
+        monitor_item: MonitorItem object from database
+        attempt: Lần thử hiện tại (1-3)
+        max_attempts: Số lần thử tối đa
+        
+    Returns:
+        dict: Kết quả kiểm tra
+    """
+    ol1(f"   🌐 HTTP/HTTPS check (attempt {attempt}/{max_attempts})...")
+    
+    success, status_code, response_time, message = ping_web(monitor_item.url_check)
+    
+    result = {
+        'success': success,
+        'response_time': response_time,
+        'message': message,
+        'details': {
+            'status_code': status_code,
+            'method': 'HTTP GET',
+            'attempt': attempt
+        }
+    }
+    
+    if success:
+        ol1(f"   ✅ {message} (Status: {status_code}, Time: {response_time:.2f}ms)")
+        return result
+    else:
+        ol1(f"   ❌ Attempt {attempt}: {message}")
+        
+        # Nếu chưa thành công và còn lần thử
+        if attempt < max_attempts:
+            ol1(f"   ⏳ Waiting 3 seconds before retry...")
+            time.sleep(3)
+            return check_ping_web(monitor_item, attempt + 1, max_attempts)
+        else:
+            ol1(f"   💥 Failed after {max_attempts} attempts")
+            return result
+
+def check_ping_icmp(monitor_item, attempt=1, max_attempts=3):
+    """
+    Kiểm tra ICMP ping service với retry logic
+    
+    Args:
+        monitor_item: MonitorItem object from database
+        attempt: Lần thử hiện tại (1-3)
+        max_attempts: Số lần thử tối đa
+        
+    Returns:
+        dict: Kết quả kiểm tra
+    """
+    # Trích xuất domain từ URL
+    host = extract_domain_from_url(monitor_item.url_check)
+    if not host:
+        return {
+            'success': False,
+            'response_time': None,
+            'message': "❌ Cannot extract domain from URL",
+            'details': {'host': None, 'method': 'ICMP ping', 'attempt': attempt}
+        }
+    
+    ol1(f"   � ICMP ping to {host} (attempt {attempt}/{max_attempts})...")
+    
+    success, response_time, message = ping_icmp(host)
+    
+    result = {
+        'success': success,
+        'response_time': response_time,
+        'message': message,
+        'details': {
+            'host': host,
+            'method': 'ICMP ping',
+            'attempt': attempt
+        }
+    }
+    
+    if success:
+        ol1(f"   ✅ {message} (Time: {response_time:.2f}ms)")
+        return result
+    else:
+        ol1(f"   ❌ Attempt {attempt}: {message}")
+        
+        # Nếu chưa thành công và còn lần thử
+        if attempt < max_attempts:
+            ol1(f"   ⏳ Waiting 3 seconds before retry...")
+            time.sleep(3)
+            return check_ping_icmp(monitor_item, attempt + 1, max_attempts)
+        else:
+            ol1(f"   💥 Failed after {max_attempts} attempts")
+            return result
+
 def check_service(monitor_item):
     """
-    Kiểm tra một dịch vụ dựa trên thông tin trong database
+    Kiểm tra một dịch vụ dựa trên thông tin trong database với retry logic
     
     Args:
         monitor_item: MonitorItem object from database
@@ -109,8 +279,9 @@ def check_service(monitor_item):
     ol1(f"   Type: {monitor_item.type}")
     ol1(f"   URL: {monitor_item.url_check}")
     ol1(f"   Check interval: {check_interval}s")
+    ol1(f"   Retry policy: 3 attempts, 3s interval")
     
-    result = {
+    base_result = {
         'monitor_item_id': monitor_item.id,
         'name': monitor_item.name,
         'type': monitor_item.type,
@@ -124,54 +295,30 @@ def check_service(monitor_item):
     }
     
     if not monitor_item.url_check:
-        result['message'] = "❌ No URL to check"
-        return result
+        base_result['message'] = "❌ No URL to check"
+        return base_result
     
+    # Gọi hàm kiểm tra phù hợp
     if monitor_item.type == 'ping_web':
-        ol1("   🌐 Performing HTTP/HTTPS check...")
-        success, status_code, response_time, message = ping_web(monitor_item.url_check)
-        
-        result['success'] = success
-        result['response_time'] = response_time
-        result['message'] = message
-        result['details'] = {
-            'status_code': status_code,
-            'method': 'HTTP GET'
-        }
-        
-        if success:
-            ol1(f"   ✅ {message} (Status: {status_code}, Time: {response_time:.2f}ms)")
-        else:
-            ol1(f"   ❌ {message}")
-            
+        check_result = check_ping_web(monitor_item)
     elif monitor_item.type == 'ping_icmp':
-        # Trích xuất domain từ URL
-        host = extract_domain_from_url(monitor_item.url_check)
-        if not host:
-            result['message'] = "❌ Cannot extract domain from URL"
-            return result
-            
-        ol1(f"   🏓 Performing ICMP ping to: {host}")
-        success, response_time, message = ping_icmp(host)
-        
-        result['success'] = success
-        result['response_time'] = response_time
-        result['message'] = message
-        result['details'] = {
-            'host': host,
-            'method': 'ICMP ping'
-        }
-        
-        if success:
-            ol1(f"   ✅ {message} (Time: {response_time:.2f}ms)")
-        else:
-            ol1(f"   ❌ {message}")
-            
+        check_result = check_ping_icmp(monitor_item)
     else:
-        result['message'] = f"❌ Unknown service type: {monitor_item.type}"
-        ol1(f"   {result['message']}")
+        base_result['message'] = f"❌ Unknown service type: {monitor_item.type}"
+        ol1(f"   {base_result['message']}")
+        return base_result
     
-    return result
+    # Merge kết quả
+    base_result.update({
+        'success': check_result['success'],
+        'response_time': check_result['response_time'],
+        'message': check_result['message'],
+        'details': check_result['details']
+    })
+    
+    # Note: Telegram notification sẽ được xử lý ở thread level để có context đầy đủ
+    
+    return base_result
 
 def get_monitor_item_by_id(item_id):
     """
@@ -191,6 +338,26 @@ def get_monitor_item_by_id(item_id):
     except Exception as e:
         ol1(f"❌ Error getting monitor item {item_id}: {e}")
         return None
+
+def update_monitor_item(monitor_item):
+    """
+    Cập nhật monitor item vào database
+    
+    Args:
+        monitor_item: MonitorItem object đã được modify
+    """
+    try:
+        session = SessionLocal()
+        # Lấy item từ DB và cập nhật
+        db_item = session.query(MonitorItem).filter(MonitorItem.id == monitor_item.id).first()
+        if db_item:
+            db_item.last_ok_or_error = monitor_item.last_ok_or_error
+            db_item.last_check_time = datetime.now()
+            session.commit()
+        session.close()
+    except Exception as e:
+        ol1(f"❌ Error updating monitor item {monitor_item.id}: {e}")
+        raise
 
 def compare_monitor_item_fields(original_item, current_item):
     """
@@ -255,6 +422,7 @@ def monitor_service_thread(monitor_item):
     original_item.result_error = monitor_item.result_error
     original_item.stopTo = monitor_item.stopTo
     original_item.forceRestart = monitor_item.forceRestart
+    original_item.last_ok_or_error = monitor_item.last_ok_or_error
     
     check_interval = monitor_item.timeRangeSeconds if monitor_item.timeRangeSeconds else 300
     check_count = 0
@@ -275,14 +443,49 @@ def monitor_service_thread(monitor_item):
                 check_count += 1
                 timestamp = datetime.now().strftime('%H:%M:%S')
                 ol1(f"\n📊 [Thread {monitor_item.id}] Check #{check_count} at {timestamp}")
-                
-                # Kiểm tra dịch vụ (không in chi tiết để tránh spam log)
-                result = check_service_silent(monitor_item)
-                
-                # Hiển thị kết quả ngắn gọn
-                status = "✅ SUCCESS" if result['success'] else "❌ FAILED"
-                response_time_str = f"{result['response_time']:.2f}ms" if result['response_time'] else "N/A"
-                ol1(f"   [Thread {monitor_item.id}] {status} | {response_time_str} | {monitor_item.name} ({monitor_item.type})")
+               
+            #    Nếu có monitor_item.stopTo, và nếu stopTo > now thì không chạy check
+                if monitor_item.stopTo and monitor_item.stopTo > datetime.now():
+                    ol1(f"   ⏸️ [Thread {monitor_item.id}] Monitor is paused until {monitor_item.stopTo}. Skipping check.")
+                else:
+                    # Kiểm tra dịch vụ với log đầy đủ
+                    result = check_service(monitor_item)
+
+                    # Lưu trạng thái cũ để so sánh cho Telegram notification
+                    old_status = monitor_item.last_ok_or_error
+                    
+                    # Cập nhật trạng thái mới
+                    new_status = 1 if result['success'] else -1
+                    monitor_item.last_ok_or_error = new_status
+                    monitor_item.lastCheck = datetime.now()
+                    
+                    # Gửi Telegram notification dựa trên thay đổi trạng thái
+                    if result['success'] and old_status == -1:
+                        # Service phục hồi từ lỗi -> OK
+                        send_telegram_notification(
+                            monitor_item=monitor_item,
+                            is_error=False,
+                            response_time=result['response_time']
+                        )
+
+                    if not result['success']:
+                        # Service chuyển từ OK/Unknown -> lỗi
+                        send_telegram_notification(
+                            monitor_item=monitor_item,
+                            is_error=True,
+                            error_message=result['message']
+                        )
+
+                    # Cập nhật database
+                    try:
+                        update_monitor_item(monitor_item) 
+                    except Exception as e:
+                        ol1(f"   ❌ [Thread {monitor_item.id}] Error updating database: {e}")
+
+                    # Hiển thị kết quả ngắn gọn
+                    status = "✅ SUCCESS" if result['success'] else "❌ FAILED"
+                    response_time_str = f"{result['response_time']:.2f}ms" if result['response_time'] else "N/A"
+                    ol1(f"   [Thread {monitor_item.id}] {status} | {response_time_str} | {monitor_item.name} ({monitor_item.type})")
                 
                 last_check_time = current_time
             
@@ -329,59 +532,6 @@ def monitor_service_thread(monitor_item):
             if monitor_item.id in stop_flags:
                 del stop_flags[monitor_item.id]
             ol1(f"🧹 [Thread {monitor_item.id}] Thread cleanup completed for {monitor_item.name}")
-
-def check_service_silent(monitor_item):
-    """
-    Kiểm tra service nhưng không print ra log chi tiết (dành cho multi-thread)
-    
-    Args:
-        monitor_item: MonitorItem object from database
-        
-    Returns:
-        dict: Kết quả kiểm tra
-    """
-    check_interval = monitor_item.timeRangeSeconds if monitor_item.timeRangeSeconds else 300
-    
-    result = {
-        'monitor_item_id': monitor_item.id,
-        'name': monitor_item.name,
-        'type': monitor_item.type,
-        'url_check': monitor_item.url_check,
-        'check_interval': check_interval,
-        'check_time': datetime.now(),
-        'success': False,
-        'response_time': None,
-        'message': '',
-        'details': {}
-    }
-    
-    if not monitor_item.url_check:
-        result['message'] = "No URL to check"
-        return result
-    
-    if monitor_item.type == 'ping_web':
-        success, status_code, response_time, message = ping_web(monitor_item.url_check)
-        result['success'] = success
-        result['response_time'] = response_time
-        result['message'] = message
-        result['details'] = {'status_code': status_code, 'method': 'HTTP GET'}
-        
-    elif monitor_item.type == 'ping_icmp':
-        host = extract_domain_from_url(monitor_item.url_check)
-        if not host:
-            result['message'] = "Cannot extract domain from URL"
-            return result
-            
-        success, response_time, message = ping_icmp(host)
-        result['success'] = success
-        result['response_time'] = response_time
-        result['message'] = message
-        result['details'] = {'host': host, 'method': 'ICMP ping'}
-        
-    else:
-        result['message'] = f"Unknown service type: {monitor_item.type}"
-    
-    return result
 
 def show_thread_status():
     """
@@ -440,6 +590,18 @@ def start_monitor_thread(monitor_item):
     """
     Bắt đầu một monitor thread cho item
     """
+    with thread_lock:
+        # Kiểm tra xem đã có thread cho item này chưa
+        if monitor_item.id in running_threads:
+            existing_thread = running_threads[monitor_item.id]['thread']
+            if existing_thread.is_alive():
+                ol1(f"⚠️ [Main] Thread for {monitor_item.name} (ID: {monitor_item.id}) is already running. Skipping.")
+                return existing_thread
+            else:
+                # Thread cũ đã chết, xóa khỏi tracking
+                ol1(f"🧹 [Main] Removing dead thread for {monitor_item.name} (ID: {monitor_item.id})")
+                del running_threads[monitor_item.id]
+    
     ol1(f"🔧 [Main] Starting thread for: {monitor_item.name} (ID: {monitor_item.id})")
     
     thread = threading.Thread(
@@ -550,10 +712,6 @@ def main_manager_loop():
 
             running_ids_and_start_time = get_running_item_ids_and_start_time()
 
-            # In ra thời gian bắt đầu của các running threads
-            for item_id, start_time in running_ids_and_start_time.items():
-                ol1(f"   🕒 Running Thread {item_id} started at {start_time}")
-
             # Cleanup dead threads trước
             cleanup_dead_threads()
             
@@ -567,6 +725,11 @@ def main_manager_loop():
                 ol1(f"\n📊 [Main Manager] Cycle #{cycle_count} at {timestamp}")
                 ol1(f"   💾 DB Enabled: {len(enabled_ids)} items {list(enabled_ids)}")
                 ol1(f"   🏃 Running: {len(running_ids)} threads {list(running_ids)}")
+                
+                # In thời gian bắt đầu của các running threads (chỉ trong status report)
+                for item_id, start_time in running_ids_and_start_time.items():
+                    ol1(f"      🕒 Thread {item_id} started at {start_time}")
+                    
                 if items_to_start:
                     ol1(f"   ➕ Need to start: {list(items_to_start)}")
                 if items_to_stop:
@@ -639,6 +802,24 @@ def main():
         if command == 'manager' or command == 'auto':
             # Main thread manager - tự động quản lý threads
             main_manager_loop()
+            
+        elif command == 'test':
+            # Test first enabled service once with retry logic
+            enabled_items = get_enabled_items_from_db()
+            if enabled_items:
+                first_item = enabled_items[0]
+                ol1(f"✅ Testing enabled monitor item: {first_item.name} (ID: {first_item.id})")
+                ol1(f"   URL: {first_item.url_check}")
+                ol1(f"   Type: {first_item.type}")
+                ol1("="*80)
+                result = check_service(first_item)
+                ol1("="*80)
+                ol1(f"🏁 Test completed for: {first_item.name}")
+                status = "✅ SUCCESS" if result['success'] else "❌ FAILED"
+                response_time = f"{result['response_time']:.2f}ms" if result['response_time'] else "N/A"
+                ol1(f"   Final result: {status} | {response_time} | {result['message']}")
+            else:
+                ol1("❌ No enabled monitor items found in database")
             
         elif command == 'status':
             # Hiển thị trạng thái threads
