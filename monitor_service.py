@@ -351,6 +351,79 @@ def ping_icmp(host, timeout=5):
     except Exception as e:
         return False, None, f"Ping error: {str(e)}"
 
+def check_ssl_certificate(host, port=443, timeout=10):
+    """
+    Kiểm tra SSL certificate và ngày hết hạn
+    Returns: (is_valid: bool, days_until_expiry: int, expiry_date: str, error_message: str)
+    """
+    try:
+        import ssl
+        import socket
+        from datetime import datetime, timezone
+        
+        # Tạo SSL context
+        context = ssl.create_default_context()
+        
+        start_time = time.time()
+        
+        # Kết nối SSL
+        with socket.create_connection((host, port), timeout=timeout) as sock:
+            with context.wrap_socket(sock, server_hostname=host) as ssock:
+                end_time = time.time()
+                response_time = (end_time - start_time) * 1000
+                
+                # Lấy certificate
+                cert = ssock.getpeercert()
+                
+                if not cert:
+                    return False, None, None, "No SSL certificate found"
+                
+                # Parse ngày hết hạn
+                not_after = cert['notAfter']
+                ol1(f"   📜 SSL Certificate raw date: {not_after}")
+                
+                # Thử các format khác nhau
+                date_formats = [
+                    '%b %d %H:%M:%S %Y %GMT',  # Oct 17 00:58:13 2025 GMT
+                    '%b %d %H:%M:%S %Y GMT',   # Oct 17 00:58:13 2025 GMT (không có %)
+                    '%b  %d %H:%M:%S %Y %GMT', # Oct  17 00:58:13 2025 GMT (double space)
+                    '%b  %d %H:%M:%S %Y GMT',  # Oct  17 00:58:13 2025 GMT (double space, no %)
+                    '%Y-%m-%d %H:%M:%S',       # 2025-10-17 00:58:13
+                ]
+                
+                expiry_date = None
+                for date_format in date_formats:
+                    try:
+                        expiry_date = datetime.strptime(not_after, date_format)
+                        ol1(f"   ✅ SSL date parsed with format: {date_format}")
+                        break
+                    except ValueError:
+                        continue
+                
+                if not expiry_date:
+                    return False, None, None, f"Cannot parse SSL certificate date: {not_after}"
+                
+                expiry_date = expiry_date.replace(tzinfo=timezone.utc)
+                
+                # Tính số ngày còn lại
+                now = datetime.now(timezone.utc)
+                days_until_expiry = (expiry_date - now).days
+                
+                expiry_str = expiry_date.strftime('%Y-%m-%d %H:%M:%S UTC')
+                
+                ol1(f"   📜 SSL Certificate expires on: {expiry_str} ({days_until_expiry} days remaining)")
+                
+                return True, days_until_expiry, expiry_str, f"SSL check successful (Response time: {response_time:.2f}ms)"
+                
+    except ssl.SSLError as e:
+        return False, None, None, f"SSL Error: {str(e)}"
+    except socket.timeout:
+        return False, None, None, f"SSL timeout after {timeout} seconds"
+    except socket.gaierror as e:
+        return False, None, None, f"DNS resolution error: {str(e)}"
+    except Exception as e:
+        return False, None, None, f"SSL check error: {str(e)}"
+
 def check_tcp_port(host, port, timeout=5):
     """
     Kiểm tra TCP port có mở hay không
@@ -605,6 +678,130 @@ def check_open_port_tcp_then_error(monitor_item, attempt=1, max_attempts=3):
         else:
             ol1(f"   💥 Port still open after {max_attempts} attempts")
             return result
+
+def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
+    """
+    Kiểm tra SSL certificate và báo lỗi nếu sắp hết hạn trong 7 ngày
+    URL format: domain hoặc domain:port
+    
+    Args:
+        monitor_item: MonitorItem object from database
+        attempt: Lần thử hiện tại (1-3)
+        max_attempts: Số lần thử tối đa
+        
+    Returns:
+        dict: Kết quả kiểm tra
+    """
+    url_check = monitor_item.url_check
+    
+    # Parse host và port từ url_check
+    if '://' in url_check:
+        # Nếu có scheme, parse URL
+        from urllib.parse import urlparse
+        parsed = urlparse(url_check)
+        host = parsed.hostname
+        port = parsed.port
+        if not port:
+            port = 443 if parsed.scheme == 'https' else 443  # Default to 443
+    elif ':' in url_check:
+        # Format host:port
+        try:
+            host, port_str = url_check.rsplit(':', 1)
+            port = int(port_str)
+        except ValueError:
+            return {
+                'success': False,
+                'response_time': None,
+                'message': f"❌ Cannot parse port from '{url_check}'. Expected 'host:port' format",
+                'details': {'host': None, 'port': None, 'method': 'SSL Certificate Check', 'attempt': attempt}
+            }
+    else:
+        # Chỉ có domain
+        host = url_check
+        port = 443  # Default HTTPS port
+    
+    if not host:
+        return {
+            'success': False,
+            'response_time': None,
+            'message': "❌ Cannot extract host from URL",
+            'details': {'host': None, 'port': port, 'method': 'SSL Certificate Check', 'attempt': attempt}
+        }
+    
+    if not (1 <= port <= 65535):
+        return {
+            'success': False,
+            'response_time': None,
+            'message': f"❌ Invalid port number: {port}. Must be 1-65535",
+            'details': {'host': host, 'port': port, 'method': 'SSL Certificate Check', 'attempt': attempt}
+        }
+    
+    ol1(f"   🔒 SSL Certificate Check - {host}:{port} (attempt {attempt}/{max_attempts})...")
+    
+    is_valid, days_until_expiry, expiry_date, message = check_ssl_certificate(host, port)
+    
+    if not is_valid:
+        result = {
+            'success': False,
+            'response_time': None,
+            'message': message,
+            'details': {
+                'host': host,
+                'port': port,
+                'method': 'SSL Certificate Check',
+                'attempt': attempt,
+                'error_type': 'ssl_connection_failed'
+            }
+        }
+        
+        ol1(f"   ❌ Attempt {attempt}: {message}")
+        
+        # Nếu chưa thành công và còn lần thử
+        if attempt < max_attempts:
+            ol1(f"   ⏳ Waiting 3s...")
+            time.sleep(3)
+            return check_ssl_expired_check(monitor_item, attempt + 1, max_attempts)
+        else:
+            ol1(f"   💥 SSL check failed after {max_attempts} attempts")
+            return result
+    
+    # SSL certificate valid, kiểm tra ngày hết hạn
+    WARNING_DAYS = 7  # Cảnh báo nếu còn <= 7 ngày
+    
+    result = {
+        'success': days_until_expiry > WARNING_DAYS,  # SUCCESS nếu còn > 7 ngày
+        'response_time': None,  # SSL check không có response time
+        'message': f"SSL expires in {days_until_expiry} days ({expiry_date})",
+        'details': {
+            'host': host,
+            'port': port,
+            'days_until_expiry': days_until_expiry,
+            'expiry_date': expiry_date,
+            'warning_threshold': WARNING_DAYS,
+            'method': 'SSL Certificate Check',
+            'attempt': attempt
+        }
+    }
+    
+    if days_until_expiry > WARNING_DAYS:
+        # SSL certificate còn hạn lâu
+        result['message'] = f"✅ SSL valid for {days_until_expiry} days (expires: {expiry_date})"
+        ol1(f"   ✅ {result['message']}")
+        return result
+    elif days_until_expiry > 0:
+        # SSL sắp hết hạn (1-7 ngày)
+        result['success'] = False
+        result['message'] = f"⚠️ SSL expires in {days_until_expiry} days - Sắp hết hạn! (expires: {expiry_date})"
+        result['details']['error_type'] = 'ssl_expiring_soon'
+        ol1(f"   ⚠️ {result['message']}")
+        return result
+    else:
+        # SSL đã hết hạn
+        result['success'] = False
+        result['message'] = f"❌ SSL certificate expired {abs(days_until_expiry)} days ago! (expired: {expiry_date})"
+        result['details']['error_type'] = 'ssl_expired'
+        ol1(f"   ❌ {result['message']}")
+        return result
 
 def check_open_port_tcp_then_valid(monitor_item, attempt=1, max_attempts=3):
     """
@@ -912,6 +1109,8 @@ def check_service(monitor_item):
         check_result = check_open_port_tcp_then_error(monitor_item)
     elif monitor_item.type == 'open_port_tcp_then_valid':
         check_result = check_open_port_tcp_then_valid(monitor_item)
+    elif monitor_item.type == 'ssl_expired_check':
+        check_result = check_ssl_expired_check(monitor_item)
     else:
         base_result['message'] = f"❌ Unknown service type: {monitor_item.type}"
         ol1(f"   {base_result['message']}")
