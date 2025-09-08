@@ -641,7 +641,7 @@ def check_open_port_tcp_then_error(monitor_item, attempt=1, max_attempts=3):
             'details': {'host': None, 'port': None, 'method': 'TCP Port Check (Error if Open)', 'attempt': attempt}
         }
     
-    ol1(f"🔍 TCP Port Check (Error if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...")
+    ol1(f"🔍 TCP Port Check (Error if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item.id)
     
     is_open, response_time, message = check_tcp_port(host, port)
     
@@ -661,18 +661,18 @@ def check_open_port_tcp_then_error(monitor_item, attempt=1, max_attempts=3):
     }
     
     if not is_open:  # Port closed = success
-        ol1(f"✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}")
+        ol1(f"✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}", monitor_item.id)
         return result
     else:  # Port open = error
-        ol1(f"❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}")
+        ol1(f"❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}", monitor_item.id)
         
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...")
+            ol1(f"⏳ Waiting 3s...", monitor_item.id)
             time.sleep(3)
             return check_open_port_tcp_then_error(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 Port still open after {max_attempts} attempts")
+            ol1(f"💥 Port still open after {max_attempts} attempts", monitor_item.id)
             return result
 
 def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
@@ -732,7 +732,7 @@ def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
             'details': {'host': host, 'port': port, 'method': 'SSL Certificate Check', 'attempt': attempt}
         }
     
-    ol1(f"🔒 SSL Certificate Check - {host}:{port} (attempt {attempt}/{max_attempts})...")
+    ol1(f"🔒 SSL Certificate Check - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item.id)
     
     is_valid, days_until_expiry, expiry_date, message = check_ssl_certificate(host, port)
     
@@ -750,15 +750,15 @@ def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
             }
         }
         
-        ol1(f"❌ Attempt {attempt}: {message}")
+        ol1(f"❌ Attempt {attempt}: {message}", monitor_item.id)
         
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...")
+            ol1(f"⏳ Waiting 3s...", monitor_item.id)
             time.sleep(3)
             return check_ssl_expired_check(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 SSL check failed after {max_attempts} attempts")
+            ol1(f"💥 SSL check failed after {max_attempts} attempts", monitor_item.id)
             return result
     
     # SSL certificate valid, kiểm tra ngày hết hạn
@@ -782,21 +782,21 @@ def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
     if days_until_expiry > WARNING_DAYS:
         # SSL certificate còn hạn lâu
         result['message'] = f"✅ SSL valid for {days_until_expiry} days (expires: {expiry_date})"
-        ol1(f"✅ {result['message']}")
+        ol1(f"✅ {result['message']}", monitor_item.id)
         return result
     elif days_until_expiry > 0:
         # SSL sắp hết hạn (1-7 ngày)
         result['success'] = False
         result['message'] = f"⚠️ SSL expires in {days_until_expiry} days - Sắp hết hạn! (expires: {expiry_date})"
         result['details']['error_type'] = 'ssl_expiring_soon'
-        ol1(f"⚠️ {result['message']}")
+        ol1(f"⚠️ {result['message']}", monitor_item.id)
         return result
     else:
         # SSL đã hết hạn
         result['success'] = False
         result['message'] = f"❌ SSL certificate expired {abs(days_until_expiry)} days ago! (expired: {expiry_date})"
         result['details']['error_type'] = 'ssl_expired'
-        ol1(f"❌ {result['message']}")
+        ol1(f"❌ {result['message']}", monitor_item.id)
         return result
 
 def check_open_port_tcp_then_valid(monitor_item, attempt=1, max_attempts=3):
@@ -841,9 +841,7 @@ def check_open_port_tcp_then_valid(monitor_item, attempt=1, max_attempts=3):
             'message': f"❌ Cannot parse port from '{url_check}'. Expected 'host:port' format",
             'details': {'host': None, 'port': None, 'method': 'TCP Port Check (Valid if Open)', 'attempt': attempt}
         }
-    
-    ol1(f"🔍 TCP Port Check (Valid if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...")
-    
+    ol1(f"🔍 TCP Port Check (Valid if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item.id)
     is_open, response_time, message = check_tcp_port(host, port)
     
     # Logic bình thường: SUCCESS nếu port OPEN, ERROR nếu port CLOSED
@@ -862,18 +860,18 @@ def check_open_port_tcp_then_valid(monitor_item, attempt=1, max_attempts=3):
     }
     
     if is_open:  # Port open = success
-        ol1(f"✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}")
+        ol1(f"✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}", monitor_item.id)
         return result
     else:  # Port closed = error
-        ol1(f"❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}")
-        
+        ol1(f"❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}", monitor_item.id)
+
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...")
+            ol1(f"⏳ Waiting 3s...", monitor_item.id)
             time.sleep(3)
             return check_open_port_tcp_then_valid(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 Port still closed after {max_attempts} attempts")
+            ol1(f"💥 Port still closed after {max_attempts} attempts", monitor_item.id)
             return result
 
 def check_ping_web(monitor_item, attempt=1, max_attempts=3):
@@ -911,7 +909,7 @@ def check_ping_web(monitor_item, attempt=1, max_attempts=3):
 
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...")
+            ol1(f"⏳ Waiting 3s...", monitor_item.id)
             time.sleep(3)
             return check_ping_web(monitor_item, attempt + 1, max_attempts)
         else:
@@ -940,7 +938,7 @@ def check_ping_icmp(monitor_item, attempt=1, max_attempts=3):
             'details': {'host': None, 'method': 'ICMP ping', 'attempt': attempt}
         }
     
-    ol1(f"🏓 ICMP ping to {host} (attempt {attempt}/{max_attempts})...", monitor_item.id)
+    ol1(f"- Ping {host} (try {attempt}/{max_attempts}) ", monitor_item.id)
     
     success, response_time, message = ping_icmp(host)
     
@@ -959,15 +957,15 @@ def check_ping_icmp(monitor_item, attempt=1, max_attempts=3):
         ol1(f"✅ {message} (Time: {response_time:.2f}ms)", monitor_item.id)
         return result
     else:
-        ol1(f"❌ Attempt {attempt}: {message}", monitor_item.id)
+        ol1(f" Attempt {attempt}: {message}", monitor_item.id)
         
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3 seconds before retry...", monitor_item.id)
+            ol1(f" Waiting 3s before retry...", monitor_item.id)
             time.sleep(3)
             return check_ping_icmp(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 Failed after {max_attempts} attempts", monitor_item.id)
+            ol1(f" Failed after {max_attempts} attempts", monitor_item.id)
             return result
 
 def check_web_content(monitor_item, attempt=1, max_attempts=3):
