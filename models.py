@@ -25,7 +25,7 @@ class MonitorItem(Base):
     deleted_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     check_interval_seconds = Column(Integer, default=360)
-    result_check = Column(Text, nullable=True)
+    result_valid = Column(Text, nullable=True)
     result_error = Column(Text, nullable=True)
     stopTo = Column(DateTime, nullable=True)
     pingType = Column(Integer, default=1)

@@ -404,6 +404,101 @@ def ping_web(url, timeout=10):
     except Exception as e:
         return False, None, None, f"Unexpected error: {str(e)}"
 
+def fetch_web_content(url, timeout=10, max_size=102400):
+    """
+    Fetch web content với giới hạn kích thước
+    Tự động thêm scheme nếu không có
+    Returns: (success: bool, status_code: int or None, response_time: float, content: str, error_message: str)
+    """
+    try:
+        # Tự động thêm scheme nếu không có
+        if '://' not in url:
+            # Thử HTTPS trước, nếu fail thì HTTP
+            test_url = f"https://{url}"
+        else:
+            test_url = url
+        
+        start_time = time.time()
+        
+        # Stream download để kiểm soát kích thước
+        response = requests.get(test_url, timeout=timeout, allow_redirects=True, stream=True)
+        end_time = time.time()
+        
+        response_time = (end_time - start_time) * 1000  # Convert to milliseconds
+        
+        if response.status_code == 200:
+            # Đọc content với giới hạn kích thước
+            content = ""
+            content_length = 0
+            
+            for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
+                if chunk:
+                    chunk_size = len(chunk.encode('utf-8'))
+                    if content_length + chunk_size > max_size:
+                        # Chỉ lấy phần còn lại
+                        remaining = max_size - content_length
+                        if remaining > 0:
+                            # Cắt chunk để fit vào remaining bytes
+                            chunk_bytes = chunk.encode('utf-8')[:remaining]
+                            content += chunk_bytes.decode('utf-8', errors='ignore')
+                        break
+                    content += chunk
+                    content_length += chunk_size
+            
+            response.close()
+            
+            ol1(f"   📄 Downloaded {content_length} bytes (max: {max_size})")
+            return True, response.status_code, response_time, content, "Content fetched successfully"
+        else:
+            response.close()
+            return False, response.status_code, response_time, "", f"HTTP {response.status_code}: {response.reason}"
+            
+    except requests.exceptions.SSLError as e:
+        # Nếu HTTPS fail với SSL error, thử HTTP
+        if '://' not in url:
+            try:
+                test_url = f"http://{url}"
+                start_time = time.time()
+                response = requests.get(test_url, timeout=timeout, allow_redirects=True, stream=True)
+                end_time = time.time()
+                
+                response_time = (end_time - start_time) * 1000
+                
+                if response.status_code == 200:
+                    content = ""
+                    content_length = 0
+                    
+                    for chunk in response.iter_content(chunk_size=1024, decode_unicode=True):
+                        if chunk:
+                            chunk_size = len(chunk.encode('utf-8'))
+                            if content_length + chunk_size > max_size:
+                                remaining = max_size - content_length
+                                if remaining > 0:
+                                    chunk_bytes = chunk.encode('utf-8')[:remaining]
+                                    content += chunk_bytes.decode('utf-8', errors='ignore')
+                                break
+                            content += chunk
+                            content_length += chunk_size
+                    
+                    response.close()
+                    ol1(f"   📄 Downloaded {content_length} bytes via HTTP fallback")
+                    return True, response.status_code, response_time, content, "Content fetched successfully (fallback to HTTP)"
+                else:
+                    response.close()
+                    return False, response.status_code, response_time, "", f"HTTP {response.status_code}: {response.reason}"
+            except:
+                return False, None, None, "", f"SSL error with HTTPS, HTTP also failed: {str(e)}"
+        else:
+            return False, None, None, "", f"SSL error: {str(e)}"
+    except requests.exceptions.Timeout:
+        return False, None, None, "", f"HTTP timeout after {timeout} seconds"
+    except requests.exceptions.ConnectionError:
+        return False, None, None, "", "Connection error - cannot reach server"
+    except requests.exceptions.RequestException as e:
+        return False, None, None, "", f"HTTP request error: {str(e)}"
+    except Exception as e:
+        return False, None, None, "", f"Unexpected error: {str(e)}"
+
 def check_ping_web(monitor_item, attempt=1, max_attempts=3):
     """
     Kiểm tra HTTP/HTTPS service với retry logic
@@ -468,7 +563,7 @@ def check_ping_icmp(monitor_item, attempt=1, max_attempts=3):
             'details': {'host': None, 'method': 'ICMP ping', 'attempt': attempt}
         }
     
-    ol1(f"   � ICMP ping to {host} (attempt {attempt}/{max_attempts})...")
+    ol1(f"   🏓 ICMP ping to {host} (attempt {attempt}/{max_attempts})...")
     
     success, response_time, message = ping_icmp(host)
     
@@ -497,6 +592,94 @@ def check_ping_icmp(monitor_item, attempt=1, max_attempts=3):
         else:
             ol1(f"   💥 Failed after {max_attempts} attempts")
             return result
+
+def check_web_content(monitor_item, attempt=1, max_attempts=3):
+    """
+    Kiểm tra web content với retry logic
+    
+    Args:
+        monitor_item: MonitorItem object from database
+        attempt: Lần thử hiện tại (1-3)
+        max_attempts: Số lần thử tối đa
+        
+    Returns:
+        dict: Kết quả kiểm tra
+    """
+    ol1(f"   📄 Web content check (attempt {attempt}/{max_attempts})...")
+    
+    # Fetch web content
+    success, status_code, response_time, content, message = fetch_web_content(monitor_item.url_check)
+    
+    result = {
+        'success': success,
+        'response_time': response_time,
+        'message': message,
+        'details': {
+            'status_code': status_code,
+            'method': 'Web Content',
+            'attempt': attempt,
+            'content_length': len(content) if content else 0
+        }
+    }
+    
+    if not success:
+        ol1(f"   ❌ Attempt {attempt}: {message}")
+        
+        # Nếu chưa thành công và còn lần thử
+        if attempt < max_attempts:
+            ol1(f"   ⏳ Waiting 3s...")
+            time.sleep(3)
+            return check_web_content(monitor_item, attempt + 1, max_attempts)
+        else:
+            ol1(f"   💥 Failed after {max_attempts} attempts")
+            return result
+    
+    # Content đã fetch thành công, bây giờ kiểm tra nội dung
+    ol1(f"   📄 Content fetched successfully ({len(content)} chars)")
+    
+    # Kiểm tra result_error trước (higher priority)
+    if monitor_item.result_error and monitor_item.result_error.strip():
+        error_keywords = [keyword.strip() for keyword in monitor_item.result_error.split(',') if keyword.strip()]
+        ol1(f"   🔍 Checking for error keywords: {error_keywords}")
+        
+        for keyword in error_keywords:
+            if keyword in content:
+                result['success'] = False
+                result['message'] = f"❌ Found error keyword: '{keyword}'"
+                result['details']['failed_keyword'] = keyword
+                result['details']['check_type'] = 'error_keyword'
+                ol1(f"   ❌ Found error keyword: '{keyword}'")
+                return result
+        
+        ol1(f"   ✅ No error keywords found")
+    
+    # Kiểm tra result_valid (required keywords)
+    if monitor_item.result_valid and monitor_item.result_valid.strip():
+        valid_keywords = [keyword.strip() for keyword in monitor_item.result_valid.split(',') if keyword.strip()]
+        ol1(f"   🔍 Checking for required keywords: {valid_keywords}")
+        
+        missing_keywords = []
+        for keyword in valid_keywords:
+            if keyword not in content:
+                missing_keywords.append(keyword)
+        
+        if missing_keywords:
+            result['success'] = False
+            result['message'] = f"❌ Missing required keywords: {', '.join(missing_keywords)}"
+            result['details']['missing_keywords'] = missing_keywords
+            result['details']['check_type'] = 'missing_required'
+            ol1(f"   ❌ Missing required keywords: {missing_keywords}")
+            return result
+        
+        ol1(f"   ✅ All required keywords found")
+    
+    # Nếu không có lỗi và tất cả keywords required đều có
+    result['success'] = True
+    result['message'] = f"✅ Content validation passed (Status: {status_code})"
+    result['details']['check_type'] = 'content_validation'
+    ol1(f"   ✅ Content validation passed")
+    
+    return result
 
 def check_service(monitor_item):
     """
@@ -539,6 +722,8 @@ def check_service(monitor_item):
         check_result = check_ping_web(monitor_item)
     elif monitor_item.type == 'ping_icmp':
         check_result = check_ping_icmp(monitor_item)
+    elif monitor_item.type == 'web_content':
+        check_result = check_web_content(monitor_item)
     else:
         base_result['message'] = f"❌ Unknown service type: {monitor_item.type}"
         ol1(f"   {base_result['message']}")
@@ -623,7 +808,7 @@ def compare_monitor_item_fields(original_item, current_item):
         ('type', 'type'),
         ('maxAlertCount', 'maxAlertCount'),
         ('check_interval_seconds', 'check_interval_seconds'),
-        ('result_check', 'result_check'),
+        ('result_valid', 'result_valid'),
         ('result_error', 'result_error'),
         ('stopTo', 'stopTo'),
         ('forceRestart', 'forceRestart')
@@ -659,7 +844,7 @@ def monitor_service_thread(monitor_item):
     original_item.type = monitor_item.type
     original_item.maxAlertCount = monitor_item.maxAlertCount
     original_item.check_interval_seconds = monitor_item.check_interval_seconds
-    original_item.result_check = monitor_item.result_check
+    original_item.result_valid = monitor_item.result_valid
     original_item.result_error = monitor_item.result_error
     original_item.stopTo = monitor_item.stopTo
     original_item.forceRestart = monitor_item.forceRestart

@@ -1,7 +1,7 @@
 - 1 Main thread kiểm soát các thread con
 - Mỗi thread con đại diện bởi 1 ID của item trong DB
 - MainThread có Loop 5 giây 1 lần, list các thread con đang chạy và, list all item trong DB nếu thấy cái nào Enable=1 mà trong list thread running chưa có, thì sẽ start thread con đó.
-- Ở mỗi thread con có 1 loop 3 giây để load lại item đó trong DB, và so sánh các trường (enable, name, user_id, url_check, type, maxAlertCount, check_interval_seconds, result_check, result_error, stopTo, forceRestart)  nếu thấy giá trị khác ban đầu, thì sẽ stop luôn thread đó (để sau đó main thread sẽ tự Start lại thread này)
+- Ở mỗi thread con có 1 loop 3 giây để load lại item đó trong DB, và so sánh các trường (enable, name, user_id, url_check, type, maxAlertCount, check_interval_seconds, result_valid, result_error, stopTo, forceRestart)  nếu thấy giá trị khác ban đầu, thì sẽ stop luôn thread đó (để sau đó main thread sẽ tự Start lại thread này)
 - MainThread nếu thấy Thread nào đang chạy mà trong DB có enable =0, thì sẽ Kill thread đang chạy đó (có vẻ như thead ko kill được nhau, nhưng cơ bản là muốn vậy)
 - các đoạn check_service có thể chia nhỏ thành các hàm riêng
 ví dụ check_ping_web, check_ping_icmp. Và bổ xung: check 3 lần mỗi lần cách nhau 3 giây, success thì dừng luôn
@@ -45,3 +45,15 @@ và user_id là duy nhất, nghĩa là setting riêng cho mỗi user:
 - mỗi một thread, đại diện là 1 hàng của monitor_items, có một trường là user_id
 từ monitor_items.user_id  sẽ tìm ra monitor_settings.user_id để lấy ra các setting trên của user_id
 sau đó dựa thêm vào alert_time_rangs, global_stop_alert_to để quyết định alert telegram có phép hiện tại hay ko
+
+
+-------------
+
+Check dạng 'web_content'
+check bằng cách  fetch web content của url_check về
+(fech tối đa 10KB)
+sau đó kiểm tra nội dung trên 2 trường 
+
+- result_valid : gồm các chuỗi con cách nhau bởi dấu phẩy, nếu content web có chứa tất cả các chuỗi con thì check là success (trim các chuỗi con trước khi check)
+- result_error: gồm các chuỗi con cách nhau bởi dấu phẩy, nếu content web có chứa một trong các chuỗi con thì check là error (trim các chuỗi con trước khi check)
+
