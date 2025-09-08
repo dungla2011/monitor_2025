@@ -70,7 +70,7 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
             ol1(f"📊 [Thread {thread_id}] Consecutive errors: {consecutive_errors}")
             
             # Kiểm tra check interval
-            check_interval_seconds = monitor_item.timeRangeSeconds if monitor_item.timeRangeSeconds else 300
+            check_interval_seconds = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
             check_interval_minutes = check_interval_seconds / 60
             
             # Logic giãn alert nếu:
@@ -94,7 +94,7 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
                     ol1(f"🔕 [Thread {thread_id}] Extended alert throttle active ({remaining_minutes:.1f}m remaining)")
                     return
                 
-                ol1(f"⚠️ [Thread {thread_id}] Sending extended throttled alert (every {EXTENDED_ALERT_INTERVAL_MINUTES}m after {CONSECUTIVE_ERROR_THRESHOLD} consecutive errors)")
+                ol1(f"⚠️ [Thread {thread_id}] Throttled alert (every {EXTENDED_ALERT_INTERVAL_MINUTES}m, {CONSECUTIVE_ERROR_THRESHOLD} consecutive errs)")
             
         else:
             # Phục hồi - reset counter lỗi liên tiếp
@@ -292,7 +292,7 @@ def check_ping_web(monitor_item, attempt=1, max_attempts=3):
         
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"   ⏳ Waiting 3 seconds before retry...")
+            ol1(f"   ⏳ Waiting 3s...")
             time.sleep(3)
             return check_ping_web(monitor_item, attempt + 1, max_attempts)
         else:
@@ -361,8 +361,8 @@ def check_service(monitor_item):
     Returns:
         dict: Kết quả kiểm tra với các key: success, response_time, message, details
     """
-    # Đặt giá trị mặc định cho timeRangeSeconds nếu None hoặc 0
-    check_interval = monitor_item.timeRangeSeconds if monitor_item.timeRangeSeconds else 300
+    # Đặt giá trị mặc định cho check_interval_seconds nếu None hoặc 0
+    check_interval = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
     
     ol1(f"\n🔍 Checking service: {monitor_item.name} (ID: {monitor_item.id})")
     ol1(f"   Type: {monitor_item.type}")
@@ -440,7 +440,7 @@ def update_monitor_item(monitor_item):
         # Lấy item từ DB và cập nhật
         db_item = session.query(MonitorItem).filter(MonitorItem.id == monitor_item.id).first()
         if db_item:
-            db_item.last_ok_or_error = monitor_item.last_ok_or_error
+            db_item.last_check_status = monitor_item.last_check_status
             db_item.last_check_time = datetime.now()
             session.commit()
         session.close()
@@ -470,7 +470,7 @@ def compare_monitor_item_fields(original_item, current_item):
         ('url_check', 'url_check'),
         ('type', 'type'),
         ('maxAlertCount', 'maxAlertCount'),
-        ('timeRangeSeconds', 'timeRangeSeconds'),
+        ('check_interval_seconds', 'check_interval_seconds'),
         ('result_check', 'result_check'),
         ('result_error', 'result_error'),
         ('stopTo', 'stopTo'),
@@ -506,16 +506,16 @@ def monitor_service_thread(monitor_item):
     original_item.url_check = monitor_item.url_check
     original_item.type = monitor_item.type
     original_item.maxAlertCount = monitor_item.maxAlertCount
-    original_item.timeRangeSeconds = monitor_item.timeRangeSeconds
+    original_item.check_interval_seconds = monitor_item.check_interval_seconds
     original_item.result_check = monitor_item.result_check
     original_item.result_error = monitor_item.result_error
     original_item.stopTo = monitor_item.stopTo
     original_item.forceRestart = monitor_item.forceRestart
-    original_item.last_ok_or_error = monitor_item.last_ok_or_error
+    original_item.last_check_status = monitor_item.last_check_status
     
-    check_interval_org = monitor_item.timeRangeSeconds if monitor_item.timeRangeSeconds else 300
+    check_interval_org = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
 
-    check_interval = monitor_item.timeRangeSeconds if monitor_item.timeRangeSeconds else 300
+    check_interval = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
     check_count = 0
     
     # Reset counter lỗi liên tiếp khi start thread
@@ -549,11 +549,11 @@ def monitor_service_thread(monitor_item):
                     result = check_service(monitor_item)
 
                     # Lưu trạng thái cũ để so sánh cho Telegram notification
-                    old_status = monitor_item.last_ok_or_error
+                    old_status = monitor_item.last_check_status
                     
                     # Cập nhật trạng thái mới
                     new_status = 1 if result['success'] else -1
-                    monitor_item.last_ok_or_error = new_status
+                    monitor_item.last_check_status = new_status
                     monitor_item.lastCheck = datetime.now()
                     
                     # Gửi Telegram notification dựa trên thay đổi trạng thái

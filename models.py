@@ -16,7 +16,7 @@ class MonitorItem(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=True)
     enable = Column(Boolean, nullable=True)  # tinyint(1) -> Boolean
-    last_ok_or_error = Column(Integer, nullable=True)  # -1=lỗi, 1=OK, NULL=chưa check
+    last_check_status = Column(Integer, nullable=True)  # -1=lỗi, 1=OK, NULL=chưa check
     url_check = Column(String(500), nullable=True)
     type = Column(String(64), nullable=True)
     maxAlertCount = Column(Integer, nullable=True)
@@ -24,7 +24,7 @@ class MonitorItem(Base):
     created_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
-    timeRangeSeconds = Column(Integer, default=360)
+    check_interval_seconds = Column(Integer, default=360)
     result_check = Column(Text, nullable=True)
     result_error = Column(Text, nullable=True)
     stopTo = Column(DateTime, nullable=True)
@@ -199,7 +199,7 @@ def get_all_monitor_items_orm():
         
         for item in monitor_items:
             enable_status = "✅ Enabled" if item.enable else "❌ Disabled" if item.enable is not None else "⚪ Unknown"
-            last_status = "✅ OK" if item.last_ok_or_error == 1 else "❌ Error" if item.last_ok_or_error == -1 else "⚪ Unknown"
+            last_status = "✅ OK" if item.last_check_status == 1 else "❌ Error" if item.last_check_status == -1 else "⚪ Unknown"
             print(f"ID: {item.id:2d} | Name: {item.name:20s} | Type: {item.type:10s} | {enable_status} | Last: {last_status}")
             if item.url_check:
                 print(f"     URL: {item.url_check}")

@@ -40,7 +40,7 @@ def simulate_consecutive_errors():
     print(f"📊 Settings:")
     print(f"   - Consecutive error threshold: {CONSECUTIVE_ERROR_THRESHOLD}")
     print(f"   - Extended alert interval: {EXTENDED_ALERT_INTERVAL_MINUTES} minutes")
-    print(f"   - Check interval: {test_item.timeRangeSeconds or 300} seconds")
+    print(f"   - Check interval: {test_item.check_interval_seconds or 300} seconds")
     
     # Simulate consecutive errors
     print(f"\n🔄 Simulating {CONSECUTIVE_ERROR_THRESHOLD + 5} consecutive errors...")

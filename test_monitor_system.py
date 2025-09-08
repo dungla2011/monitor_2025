@@ -62,7 +62,7 @@ def main():
         print(f"Testing: {test_item.name}")
         print(f"URL: {test_item.url_check}")
         print(f"Type: {test_item.type}")
-        print(f"Current status: {test_item.last_ok_or_error}")
+        print(f"Current status: {test_item.last_check_status}")
         
         # Kiểm tra service
         result = check_service(test_item)
