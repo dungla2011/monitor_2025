@@ -7,7 +7,7 @@ import os
 from datetime import datetime
 
 
-def ol1(msg):
+def ol1(msg, id=None):
     """
     Output Log function - Ghi log ra console và file
     
@@ -15,11 +15,21 @@ def ol1(msg):
         msg (str): Thông điệp cần log
     """
     print(msg)
+
+# Tạo folder logs nếu chưa có
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+
     # Ghi log ra file với utf-8 encoding:
     try:
-        log_file = os.getenv('LOG_FILE', 'log.txt')
+        if id is not None:
+            log_file = os.getenv('LOG_FILE', f'logs/log_{id}.txt')
+        else:
+            log_file = os.getenv('LOG_FILE', f'logs/log_main.txt')
         with open(log_file, "a", encoding="utf-8") as f:
-            f.write(f"{datetime.now().isoformat()} - {msg}\n")
+            # Format thời gian chỉ đến giây, bỏ millisecond
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            f.write(f"{timestamp}#{msg}\n")
     except Exception as e:
         # Tránh lỗi khi file không thể write
         # Không print error để tránh loop
