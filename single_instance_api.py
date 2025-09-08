@@ -30,46 +30,69 @@ class SingleInstanceManager:
         self.pid = None
         
     def is_already_running(self):
-        """Kiểm tra xem có instance nào đang chạy không"""
-        if not os.path.exists(self.lock_file):
-            return False, None, None
-            
-        try:
-            with open(self.lock_file, 'r') as f:
-                data = json.load(f)
-                stored_pid = data.get('pid')
-                stored_port = data.get('port', self.port)
-                
-            # Kiểm tra process có tồn tại không
-            if stored_pid and psutil.pid_exists(stored_pid):
-                try:
-                    process = psutil.Process(stored_pid)
-                    # Kiểm tra process name có phải monitor không
-                    if 'python' in process.name().lower():
-                        # Kiểm tra port có đang được sử dụng không
-                        if self._is_port_in_use(stored_port):
-                            return True, stored_pid, stored_port
-                        
-                except psutil.NoSuchProcess:
-                    pass
-            
-            # Cleanup stale lock file
+        """Kiểm tra xem có instance nào đang chạy không (chỉ dựa trên port)"""
+        # Kiểm tra port có đang được sử dụng không
+        if self._is_port_in_use(self.port):
+            # Thử lấy thông tin từ lock file nếu có
+            lock_info = self.get_running_instance_info()
+            if lock_info:
+                return True, lock_info.get('pid'), lock_info.get('port', self.port)
+            else:
+                # Port đang được dùng nhưng không có lock file
+                return True, None, self.port
+        
+        # Port không được dùng - cleanup lock file cũ nếu có
+        if os.path.exists(self.lock_file):
             self._remove_lock_file()
-            return False, None, None
-            
-        except (json.JSONDecodeError, IOError):
-            self._remove_lock_file()
-            return False, None, None
+        
+        return False, None, None
     
     def _is_port_in_use(self, port):
-        """Kiểm tra port có đang được sử dụng không"""
+        """
+        Kiểm tra port có đang được sử dụng không
+        Trả về True nếu port đang được sử dụng
+        """
         try:
+            # Thử connect đến port
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(1)
                 result = s.connect_ex((API_HOST, port))
-                return result == 0
-        except:
+                if result == 0:
+                    return True
+                    
+            # Nếu connect không được, thử bind để chắc chắn
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.settimeout(1)
+                s.bind((API_HOST, port))
+                # Nếu bind được thì port không được sử dụng
+                return False
+                
+        except socket.error:
+            # Nếu bind fail thì port đang được sử dụng
+            return True
+        except Exception as e:
+            print(f"⚠️ Error checking port {port}: {e}")
             return False
+    
+    def get_process_using_port(self, port):
+        """
+        Tìm process đang sử dụng port (để debug)
+        Trả về (pid, name, cmdline) hoặc None
+        """
+        try:
+            for conn in psutil.net_connections(kind='inet'):
+                if conn.laddr.port == port and conn.status == psutil.CONN_LISTEN:
+                    if conn.pid:
+                        try:
+                            process = psutil.Process(conn.pid)
+                            return conn.pid, process.name(), ' '.join(process.cmdline())
+                        except psutil.NoSuchProcess:
+                            return conn.pid, "Unknown", "Process not found"
+            return None
+        except Exception as e:
+            print(f"⚠️ Error finding process using port {port}: {e}")
+            return None
     
     def create_lock_file(self):
         """Tạo lock file cho instance hiện tại"""

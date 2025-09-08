@@ -1086,11 +1086,24 @@ def main():
             return
                 
         elif command == 'manager' or command == 'start':
-            # Kiểm tra single instance
+            # Kiểm tra single instance dựa trên port
             is_running, pid, port = instance_manager.is_already_running()
             if is_running:
-                print(f"⚠️ Monitor service is already running (PID: {pid}, Port: {port})")
-                print(f"🌐 Dashboard: http://127.0.0.1:{port}")
+                host = os.getenv('HTTP_HOST', '127.0.0.1')
+                print(f"⚠️ Monitor service is already running on port {port}")
+                if pid:
+                    print(f"   PID: {pid}")
+                else:
+                    # Thử tìm process đang sử dụng port
+                    process_info = instance_manager.get_process_using_port(port)
+                    if process_info:
+                        pid_found, name, cmdline = process_info
+                        print(f"   Process using port {port}: PID {pid_found} - {name}")
+                        print(f"   Command: {cmdline}")
+                    else:
+                        print(f"   Unknown process is using port {port}")
+                        
+                print(f"🌐 Dashboard: http://{host}:{port}")
                 print("Use 'python monitor_service.py stop' to shutdown")
                 return
             
