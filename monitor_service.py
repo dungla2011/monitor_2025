@@ -596,6 +596,11 @@ def update_monitor_item(monitor_item):
         if db_item:
             db_item.last_check_status = monitor_item.last_check_status
             db_item.last_check_time = datetime.now()
+            # Cập nhật counter nếu có thay đổi
+            if hasattr(monitor_item, 'count_online') and monitor_item.count_online is not None:
+                db_item.count_online = monitor_item.count_online
+            if hasattr(monitor_item, 'count_offline') and monitor_item.count_offline is not None:
+                db_item.count_offline = monitor_item.count_offline
             session.commit()
         session.close()
     except Exception as e:
@@ -705,10 +710,22 @@ def monitor_service_thread(monitor_item):
                     # Lưu trạng thái cũ để so sánh cho Telegram notification
                     old_status = monitor_item.last_check_status
                     
-                    # Cập nhật trạng thái mới
+                    # Cập nhật trạng thái mới và counter
                     new_status = 1 if result['success'] else -1
                     monitor_item.last_check_status = new_status
                     monitor_item.last_check_time = datetime.now()
+                    
+                    # Cập nhật counter: thành công -> count_online++, thất bại -> count_offline++
+                    if result['success']:
+                        if monitor_item.count_online is None:
+                            monitor_item.count_online = 0
+                        monitor_item.count_online += 1
+                        ol1(f"   📈 [Thread {monitor_item.id}] count_online: {monitor_item.count_online}")
+                    else:
+                        if monitor_item.count_offline is None:
+                            monitor_item.count_offline = 0  
+                        monitor_item.count_offline += 1
+                        ol1(f"   📉 [Thread {monitor_item.id}] count_offline: {monitor_item.count_offline}")
                     
                     # Gửi Telegram notification dựa trên thay đổi trạng thái
                     if result['success'] and old_status == -1:

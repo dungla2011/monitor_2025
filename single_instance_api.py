@@ -242,7 +242,9 @@ class MonitorAPI:
                         'user_id': item.user_id,
                         'consecutive_errors': self.thread_consecutive_errors.get(thread_id, 0),
                         'is_thread_running': thread_id in self.running_threads,
-                        'stop_to': item.stopTo.isoformat() if item.stopTo else None
+                        'stop_to': item.stopTo.isoformat() if item.stopTo else None,
+                        'count_online': item.count_online or 0,
+                        'count_offline': item.count_offline or 0
                     })
                 
                 return jsonify({
@@ -518,6 +520,8 @@ DASHBOARD_HTML = '''
                                 <th>Status</th>
                                 <th>Enabled</th>
                                 <th>Thread</th>
+                                <th>Success</th>
+                                <th>Failed</th>
                                 <th>Errors</th>
                                 <th>Last Check</th>
                             </tr>
@@ -544,6 +548,8 @@ DASHBOARD_HTML = '''
                             <td class="${statusClass}">${statusText}</td>
                             <td class="${enabledClass}">${enabledText}</td>
                             <td>${threadText}</td>
+                            <td style="color: #28a745; font-weight: bold;">${monitor.count_online || 0}</td>
+                            <td style="color: #dc3545; font-weight: bold;">${monitor.count_offline || 0}</td>
                             <td>${monitor.consecutive_errors}</td>
                             <td>${monitor.last_check_time ? new Date(monitor.last_check_time).toLocaleString() : 'Never'}</td>
                         </tr>
