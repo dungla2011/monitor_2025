@@ -15,6 +15,7 @@ from db_connection import engine
 from models import MonitorItem, get_telegram_config_for_monitor_item, is_alert_time_allowed
 from telegram_helper import send_telegram_alert, send_telegram_recovery
 from single_instance_api import SingleInstanceManager, MonitorAPI, check_instance_and_get_status
+from utils import ol1, format_response_time, safe_get_env_int, safe_get_env_bool, validate_url, generate_thread_name, format_counter_display
 
 # Load environment variables
 load_dotenv()
@@ -40,16 +41,6 @@ thread_last_alert_time = {}  # Dictionary để track thời gian gửi alert cu
 
 # Create session factory
 SessionLocal = sessionmaker(bind=engine)
-
-def ol1(msg):
-    """Log function - defined early to avoid NameError in cleanup"""
-    print(msg)
-    # Ghi log ra file với utf-8 encoding:
-    try:
-        with open("log.txt", "a", encoding="utf-8") as f:
-            f.write(f"{datetime.now().isoformat()} - {msg}\n")
-    except:
-        pass  # Tránh lỗi khi file không thể write
 
 # Flag để track cleanup đã chạy chưa
 cleanup_running = False
@@ -163,9 +154,9 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
     """
     try:
         # Kiểm tra TELEGRAM_ENABLED từ .env (global setting)
-        telegram_enabled = os.getenv('TELEGRAM_ENABLED', 'false').lower() == 'true'
-        if not telegram_enabled:
-            return
+        # telegram_enabled = os.getenv('TELEGRAM_ENABLED', 'false').lower() == 'true'
+        # if not telegram_enabled:
+        #     return
         
         thread_id = monitor_item.id
         current_time = time.time()

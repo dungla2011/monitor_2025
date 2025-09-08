@@ -2,6 +2,9 @@ import requests
 import json
 import os
 from datetime import datetime
+from utils import ol1, format_response_time, safe_get_env_int, safe_get_env_bool, validate_url, generate_thread_name, format_counter_display
+
+# from monitor_service import ol1
 
 def send_telegram_message(bot_token, chat_id, message):
     """
@@ -22,6 +25,14 @@ def send_telegram_message(bot_token, chat_id, message):
     """
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+        if not chat_id or not bot_token:
+            ol1("Missing bot token or chat ID")
+            return {
+                'success': False,
+                'message': 'Missing bot token or chat ID',
+                'response': None
+            }
         
         payload = {
             'chat_id': chat_id,
