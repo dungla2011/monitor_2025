@@ -249,10 +249,11 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
             consecutive_errors = thread_consecutive_errors.get(thread_id, 0)
             enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
             
+            admin_domain = os.getenv('ADMIN_DOMAIN', 'monitor.mytree.vn')
             result = send_telegram_alert(
                 bot_token=bot_token,
                 chat_id=chat_id,
-                url_admin=f"https://monitor.mytree.vn/member/monitor-item/edit/{monitor_item.id}",
+                url_admin=f"https://{admin_domain}/member/monitor-item/edit/{monitor_item.id}",
                 service_name=monitor_item.name,
                 service_url=monitor_item.url_check,
                 error_message=enhanced_error_message
@@ -262,11 +263,12 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
             else:
                 ol1(f"❌ [Thread {thread_id}] Telegram alert failed: {result['message']}")
         else:
+            admin_domain = os.getenv('ADMIN_DOMAIN', 'monitor.mytree.vn')
             result = send_telegram_recovery(
                 bot_token=bot_token,
                 chat_id=chat_id,
                 service_name=monitor_item.name,
-                url_admin=f"https://monitor.mytree.vn/member/monitor-item/edit/{monitor_item.id}",
+                url_admin=f"https://{admin_domain}/member/monitor-item/edit/{monitor_item.id}",
                 service_url=monitor_item.url_check,
                 response_time=response_time or 0
             )
