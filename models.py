@@ -30,9 +30,11 @@ class MonitorItem(Base):
     stopTo = Column(DateTime, nullable=True)
     pingType = Column(Integer, default=1)
     log = Column(Text, nullable=True)
-    lastCheck = Column(DateTime, nullable=True)
+    last_check_time = Column(DateTime, nullable=True)
     queuedSendStr = Column(Text, nullable=True)
     forceRestart = Column(Boolean, default=False)  # tinyint(1) -> Boolean
+    count_online = Column(Integer, default=0)  # Đếm số lần check thành công
+    count_offline = Column(Integer, default=0)  # Đếm số lần check thất bại
     
     def __repr__(self):
         return f"<MonitorItem(id={self.id}, name='{self.name}', type='{self.type}', enable={self.enable})>"
@@ -203,8 +205,8 @@ def get_all_monitor_items_orm():
             print(f"ID: {item.id:2d} | Name: {item.name:20s} | Type: {item.type:10s} | {enable_status} | Last: {last_status}")
             if item.url_check:
                 print(f"     URL: {item.url_check}")
-            if item.lastCheck:
-                print(f"     Last Check: {item.lastCheck}")
+            if item.last_check_time:
+                print(f"     Last Check: {item.last_check_time}")
             print("-" * 80)
         
         session.close()

@@ -5,6 +5,8 @@ import platform
 import threading
 import os
 import sys
+import atexit
+import signal
 from urllib.parse import urlparse
 from datetime import datetime
 from sqlalchemy.orm import sessionmaker
@@ -12,10 +14,13 @@ from dotenv import load_dotenv
 from db_connection import engine
 from models import MonitorItem, get_telegram_config_for_monitor_item, is_alert_time_allowed
 from telegram_helper import send_telegram_alert, send_telegram_recovery
+from single_instance_api import SingleInstanceManager, MonitorAPI, check_instance_and_get_status
 
 # Load environment variables
 load_dotenv()
 
+# Single Instance Manager
+instance_manager = SingleInstanceManager()
 
 # Global dictionary để track running threads
 running_threads = {} 
@@ -37,10 +42,114 @@ thread_last_alert_time = {}  # Dictionary để track thời gian gửi alert cu
 SessionLocal = sessionmaker(bind=engine)
 
 def ol1(msg):
+    """Log function - defined early to avoid NameError in cleanup"""
     print(msg)
     # Ghi log ra file với utf-8 encoding:
-    with open("log.txt", "a", encoding="utf-8") as f:
-        f.write(f"{datetime.now().isoformat()} - {msg}\n")
+    try:
+        with open("log.txt", "a", encoding="utf-8") as f:
+            f.write(f"{datetime.now().isoformat()} - {msg}\n")
+    except:
+        pass  # Tránh lỗi khi file không thể write
+
+# Flag để track cleanup đã chạy chưa
+cleanup_running = False
+
+def cleanup_on_exit():
+    """Cleanup function khi thoát"""
+    global instance_manager, cleanup_running
+    
+    if cleanup_running:
+        return  # Tránh cleanup nhiều lần
+    
+    cleanup_running = True
+    ol1("🔄 Cleaning up before exit...")
+    
+    # Signal all threads to stop
+    shutdown_event.set()
+    
+    # Wait for threads to finish (with timeout)
+    with thread_lock:
+        for thread_id, thread_info in list(running_threads.items()):
+            try:
+                thread = thread_info['thread'] if isinstance(thread_info, dict) else thread_info
+                if thread.is_alive():
+                    ol1(f"⏳ Waiting for thread {thread_id} to finish...")
+                    thread.join(timeout=2)  # 2 second timeout
+                    if thread.is_alive():
+                        ol1(f"⚠️ Thread {thread_id} still running after timeout")
+            except Exception as e:
+                ol1(f"⚠️ Error cleaning up thread {thread_id}: {e}")
+                
+    # Cleanup instance manager
+    if instance_manager:
+        instance_manager.cleanup()
+    
+    ol1("✅ Cleanup completed")
+
+# Register cleanup handlers
+atexit.register(cleanup_on_exit)
+
+# Counter để track số lần nhấn Ctrl+C
+ctrl_c_count = 0
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals"""
+    global ctrl_c_count
+    ctrl_c_count += 1
+    
+    ol1(f"🛑 Received signal {signum}, shutting down... (press Ctrl+C again for force exit)")
+    
+    if ctrl_c_count >= 2:
+        ol1("⚡ Force exit - killing process immediately!")
+        os._exit(1)  # Force exit không đợi cleanup
+    
+    cleanup_on_exit()
+    sys.exit(0)
+
+# Register signal handlers
+signal.signal(signal.SIGINT, signal_handler)
+signal.signal(signal.SIGTERM, signal_handler)
+
+def start_api_server():
+    """Khởi động API server trong thread riêng"""
+    try:
+        ol1("🔧 Initializing API server...")
+        port = int(os.getenv('HTTP_PORT', 5005))
+        host = os.getenv('HTTP_HOST', '127.0.0.1')
+        
+        api = MonitorAPI(host=host, port=port)
+        
+        # Pass references directly để tránh circular import
+        api.set_monitor_refs(
+            running_threads=running_threads,
+            thread_consecutive_errors=thread_consecutive_errors,
+            thread_last_alert_time=thread_last_alert_time,
+            get_all_monitor_items=get_all_monitor_items,
+            shutdown_event=shutdown_event
+        )
+        
+        ol1("✅ API server initialized successfully")
+        api.start_server()
+    except Exception as e:
+        ol1(f"❌ API Server error: {e}")
+        import traceback
+        ol1(f"❌ Traceback: {traceback.format_exc()}")
+        # Print more detailed error info
+        import traceback
+        ol1(f"   Error details: {traceback.format_exc()}")
+
+def get_all_monitor_items():
+    """Hàm helper để API có thể truy cập tất cả monitor items"""
+    try:
+        session = SessionLocal()
+        items = session.query(MonitorItem).filter(
+            MonitorItem.deleted_at.is_(None)  # Chưa bị xóa
+        ).all()
+        session.close()
+        return items
+    except Exception as e:
+        ol1(f"❌ Error getting all monitor items: {e}")
+        return []
 
 def send_telegram_notification(monitor_item, is_error=True, error_message="", response_time=None):
     """
@@ -181,10 +290,28 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
 
 def extract_domain_from_url(url):
     """
-    Trích xuất domain từ URL
-    Ví dụ: https://glx.com.vn/path -> glx.com.vn
+    Trích xuất domain hoặc IP từ URL
+    Ví dụ: 
+    - https://glx.com.vn/path -> glx.com.vn
+    - 10.0.1.11 -> 10.0.1.11 (IP thuần)
+    - http://10.0.1.11 -> 10.0.1.11
     """
     try:
+        # Nếu URL không có scheme, coi như là hostname/IP thuần
+        if '://' not in url:
+            # Kiểm tra xem có phải IP hoặc hostname không
+            import re
+            # Pattern cho IP address
+            ip_pattern = r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$'
+            # Pattern cho hostname (domain)
+            hostname_pattern = r'^[a-zA-Z0-9.-]+$'
+            
+            if re.match(ip_pattern, url) or re.match(hostname_pattern, url):
+                return url
+            else:
+                return None
+        
+        # Nếu có scheme, dùng urlparse như bình thường
         parsed = urlparse(url)
         return parsed.hostname
     except Exception as e:
@@ -217,10 +344,10 @@ def ping_icmp(host, timeout=5):
             
             # Log chi tiết để debug
             ol1(f"❌ Ping command failed:")
-            # ol1(f"   Command: {' '.join(cmd)}")
-            # ol1(f"   Return code: {result.returncode}")
-            # ol1(f"   STDOUT: {stdout_output}")
-            # ol1(f"   STDERR: {stderr_output}")
+            ol1(f"   Command: {' '.join(cmd)}")
+            ol1(f"   Return code: {result.returncode}")
+            ol1(f"   STDOUT: {stdout_output}")
+            ol1(f"   STDERR: {stderr_output}")
             
             return False, None, f"Ping failed (code {result.returncode}): {stderr_output}"
             
@@ -234,11 +361,19 @@ def ping_icmp(host, timeout=5):
 def ping_web(url, timeout=10):
     """
     Kiểm tra HTTP/HTTPS URL
+    Tự động thêm scheme nếu không có
     Returns: (success: bool, status_code: int or None, response_time: float, error_message: str)
     """
     try:
+        # Tự động thêm scheme nếu không có
+        if '://' not in url:
+            # Thử HTTPS trước, nếu fail thì HTTP
+            test_url = f"https://{url}"
+        else:
+            test_url = url
+        
         start_time = time.time()
-        response = requests.get(url, timeout=timeout, allow_redirects=True)
+        response = requests.get(test_url, timeout=timeout, allow_redirects=True)
         end_time = time.time()
         
         response_time = (end_time - start_time) * 1000  # Convert to milliseconds
@@ -248,6 +383,25 @@ def ping_web(url, timeout=10):
         else:
             return False, response.status_code, response_time, f"HTTP {response.status_code}: {response.reason}"
             
+    except requests.exceptions.SSLError as e:
+        # Nếu HTTPS fail với SSL error, thử HTTP
+        if '://' not in url:
+            try:
+                test_url = f"http://{url}"
+                start_time = time.time()
+                response = requests.get(test_url, timeout=timeout, allow_redirects=True)
+                end_time = time.time()
+                
+                response_time = (end_time - start_time) * 1000
+                
+                if response.status_code == 200:
+                    return True, response.status_code, response_time, "HTTP request successful (fallback to HTTP)"
+                else:
+                    return False, response.status_code, response_time, f"HTTP {response.status_code}: {response.reason}"
+            except:
+                return False, None, None, f"SSL error with HTTPS, HTTP also failed: {str(e)}"
+        else:
+            return False, None, None, f"SSL error: {str(e)}"
     except requests.exceptions.Timeout:
         return False, None, None, f"HTTP timeout after {timeout} seconds"
     except requests.exceptions.ConnectionError:
@@ -554,7 +708,7 @@ def monitor_service_thread(monitor_item):
                     # Cập nhật trạng thái mới
                     new_status = 1 if result['success'] else -1
                     monitor_item.last_check_status = new_status
-                    monitor_item.lastCheck = datetime.now()
+                    monitor_item.last_check_time = datetime.now()
                     
                     # Gửi Telegram notification dựa trên thay đổi trạng thái
                     if result['success'] and old_status == -1:
@@ -893,20 +1047,69 @@ def get_all_enabled_monitor_items():
 
 
 def main():
-    """
-    Main function với các options khác nhau
-    """
-    import sys
+    """Main function với single instance protection và HTTP API"""
+    global instance_manager
     
     if len(sys.argv) > 1:
         command = sys.argv[1].lower()
+        
+        if command == 'status':
+            # Chỉ kiểm tra status, không cần single instance
+            if check_instance_and_get_status():
+                return
+            else:
+                print("❌ No monitor service instance is running")
+                return
+                
+        elif command == 'stop':
+            # Dừng service qua API
+            if check_instance_and_get_status():
+                try:
+                    import requests
+                    response = requests.post("http://127.0.0.1:5005/api/shutdown", timeout=5)
+                    if response.status_code == 200:
+                        print("✅ Shutdown command sent successfully")
+                    else:
+                        print(f"⚠️ Shutdown API response: {response.status_code}")
+                except requests.RequestException as e:
+                    print(f"❌ Cannot send shutdown command: {e}")
+            return
+                
+        elif command == 'manager' or command == 'start':
+            # Kiểm tra single instance
+            is_running, pid, port = instance_manager.is_already_running()
+            if is_running:
+                print(f"⚠️ Monitor service is already running (PID: {pid}, Port: {port})")
+                print(f"🌐 Dashboard: http://127.0.0.1:{port}")
+                print("Use 'python monitor_service.py stop' to shutdown")
+                return
             
-        if command == 'manager' or command == 'auto':
-            # Main thread manager - tự động quản lý threads
-            main_manager_loop()
+            # Tạo lock file
+            if not instance_manager.create_lock_file():
+                print("❌ Failed to create lock file. Exiting.")
+                return
+                
+            ol1("🚀 Starting Monitor Service with HTTP API...")
+            ol1(f"🔒 Instance locked (PID: {os.getpid()})")
+            
+            # Start HTTP API server in background thread
+            api_thread = threading.Thread(target=start_api_server, daemon=True)
+            api_thread.start()
+            
+            # Wait a bit for API server to start
+            time.sleep(2)
+            ol1("🌐 HTTP Dashboard: http://127.0.0.1:5005")
+            ol1("📊 API Status: http://127.0.0.1:5005/api/status")
+            
+            # Start main manager loop
+            try:
+                main_manager_loop()
+            except KeyboardInterrupt:
+                ol1("🛑 Received Ctrl+C, shutting down gracefully...")
+                cleanup_on_exit()
             
         elif command == 'test':
-            # Test first enabled service once with retry logic
+            # Test command không cần single instance protection
             enabled_items = get_enabled_items_from_db()
             if enabled_items:
                 first_item = enabled_items[0]
@@ -922,14 +1125,26 @@ def main():
                 ol1(f"   Final result: {status} | {response_time} | {result['message']}")
             else:
                 ol1("❌ No enabled monitor items found in database")
-            
-        elif command == 'status':
-            # Hiển thị trạng thái threads
-            show_thread_status()           
         else:
-            ol1("Usage:")
-            ol1("  python monitor_service.py test       - Test first service once")            
-            ol1("  python monitor_service.py manager    - Auto-manage all monitor threads (recommended)")
+            print("Monitor Service 2025 - Single Instance with HTTP API")
+            print("="*60)
+            print("Usage:")
+            print("  python monitor_service.py start      - Start monitor service with API")
+            print("  python monitor_service.py manager    - Same as start")            
+            print("  python monitor_service.py status     - Check service status")
+            print("  python monitor_service.py stop       - Stop running service")
+            print("  python monitor_service.py test       - Test first service once")
+            print("")
+            print("HTTP Dashboard: http://127.0.0.1:5005")
+            print("API Endpoints:")
+            print("  GET  /api/status    - Service status")
+            print("  GET  /api/monitors  - Monitor items") 
+            print("  GET  /api/threads   - Thread information")
+            print("  GET  /api/logs      - Recent logs")
+            print("  POST /api/shutdown  - Shutdown service")
+    else:
+        # No arguments - show help
+        main()
             
 
 if __name__ == "__main__":
