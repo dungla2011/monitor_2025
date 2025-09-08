@@ -9,18 +9,24 @@ import atexit
 import signal
 from urllib.parse import urlparse
 from datetime import datetime
-from sqlalchemy.orm import sessionmaker
 from dotenv import load_dotenv
+
+# Load environment variables FIRST - check for --test argument  
+if '--test' in sys.argv or 'test' in sys.argv:
+    print("🧪 TEST MODE detected - Loading test environment (.env.test)")
+    load_dotenv('.env.test')
+else:
+    load_dotenv()
+
+# Now import modules that depend on environment variables
+from sqlalchemy.orm import sessionmaker
 from db_connection import engine
 from models import MonitorItem, get_telegram_config_for_monitor_item, is_alert_time_allowed
 from telegram_helper import send_telegram_alert, send_telegram_recovery
 from single_instance_api import SingleInstanceManager, MonitorAPI, check_instance_and_get_status
 from utils import ol1, format_response_time, safe_get_env_int, safe_get_env_bool, validate_url, generate_thread_name, format_counter_display
 
-# Load environment variables
-load_dotenv()
-
-# Single Instance Manager
+# Single Instance Manager - MUST be initialized after loading environment
 instance_manager = SingleInstanceManager()
 
 # Global dictionary để track running threads
@@ -1642,7 +1648,8 @@ def main():
             if check_instance_and_get_status():
                 try:
                     import requests
-                    response = requests.post("http://127.0.0.1:5005/api/shutdown", timeout=5)
+                    port = int(os.getenv('HTTP_PORT', 5005))
+                    response = requests.post(f"http://127.0.0.1:{port}/api/shutdown", timeout=5)
                     if response.status_code == 200:
                         print("✅ Shutdown command sent successfully")
                     else:
@@ -1687,8 +1694,9 @@ def main():
             
             # Wait a bit for API server to start
             time.sleep(2)
-            ol1("🌐 HTTP Dashboard: http://127.0.0.1:5005")
-            ol1("📊 API Status: http://127.0.0.1:5005/api/status")
+            port = int(os.getenv('HTTP_PORT', 5005))
+            ol1(f"🌐 HTTP Dashboard: http://127.0.0.1:{port}")
+            ol1(f"📊 API Status: http://127.0.0.1:{port}/api/status")
             
             # Start main manager loop
             try:
@@ -1719,12 +1727,17 @@ def main():
             print("="*60)
             print("Usage:")
             print("  python monitor_service.py start      - Start monitor service with API")
+            print("  python monitor_service.py start --test - Start with test environment (.env.test)")
             print("  python monitor_service.py manager    - Same as start")            
             print("  python monitor_service.py status     - Check service status")
             print("  python monitor_service.py stop       - Stop running service")
             print("  python monitor_service.py test       - Test first service once")
             print("")
-            print("HTTP Dashboard: http://127.0.0.1:5005")
+            print("Test Mode:")
+            print("  --test flag loads .env.test (port 5006, test database)")
+            print("")
+            port = int(os.getenv('HTTP_PORT', 5005))
+            print(f"HTTP Dashboard: http://127.0.0.1:{port}")
             print("API Endpoints:")
             print("  GET  /api/status    - Service status")
             print("  GET  /api/monitors  - Monitor items") 

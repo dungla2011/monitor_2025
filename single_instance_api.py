@@ -9,24 +9,32 @@ import socket
 import psutil
 import threading
 from datetime import datetime
-from flask import Flask, jsonify, render_template_string, request
+from flask import Flask, jsonify, render_template_string, request, session, redirect, url_for
 from pathlib import Path
 from dotenv import load_dotenv
+import hashlib
+import secrets
 
 # Load environment variables
 load_dotenv()
 
 # Global variables để track instance
 INSTANCE_LOCK_FILE = "monitor_service.lock"
-INSTANCE_PORT = int(os.getenv('HTTP_PORT', 5005))  # Đọc từ .env
-API_HOST = os.getenv('HTTP_HOST', '127.0.0.1')     # Đọc từ .env
+
+def get_default_port():
+    """Get default port from environment (lazy loading)"""
+    return int(os.getenv('HTTP_PORT', 5005))
+
+def get_default_host():
+    """Get default host from environment (lazy loading)"""
+    return os.getenv('HTTP_HOST', '127.0.0.1')
 
 class SingleInstanceManager:
     """Quản lý single instance cho monitor service"""
     
     def __init__(self, lock_file=None, port=None):
         self.lock_file = lock_file or INSTANCE_LOCK_FILE
-        self.port = port or INSTANCE_PORT
+        self.port = port or get_default_port()  # Lazy load port
         self.pid = None
         
     def is_already_running(self):
@@ -56,7 +64,7 @@ class SingleInstanceManager:
             # Thử connect đến port
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(1)
-                result = s.connect_ex((API_HOST, port))
+                result = s.connect_ex((get_default_host(), port))
                 if result == 0:
                     return True
                     
@@ -64,7 +72,7 @@ class SingleInstanceManager:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
                 s.settimeout(1)
-                s.bind((API_HOST, port))
+                s.bind((get_default_host(), port))
                 # Nếu bind được thì port không được sử dụng
                 return False
                 
@@ -102,7 +110,7 @@ class SingleInstanceManager:
             'pid': self.pid,
             'port': self.port,
             'started_at': datetime.now().isoformat(),
-            'host': API_HOST
+            'host': get_default_host()
         }
         
         try:
@@ -147,6 +155,13 @@ class MonitorAPI:
         self.app = Flask(__name__)
         self.app.config['JSON_AS_ASCII'] = False  # Để support tiếng Việt
         
+        # Setup Flask session for authentication
+        self.app.secret_key = secrets.token_urlsafe(32)
+        
+        # Get authentication credentials from environment
+        self.admin_username = os.getenv('WEB_ADMIN_USERNAME', 'admin')
+        self.admin_password = os.getenv('WEB_ADMIN_PASSWORD', 'admin123')
+        
         # Không import ngay để tránh circular import
         self.running_threads = None
         self.thread_consecutive_errors = None
@@ -155,6 +170,30 @@ class MonitorAPI:
         self.shutdown_event = None
         
         self.setup_routes()
+    
+    def requires_auth(self, f):
+        """Decorator to require authentication for routes"""
+        from functools import wraps
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            if 'authenticated' not in session or not session['authenticated']:
+                return redirect(url_for('login'))
+            return f(*args, **kwargs)
+        return decorated_function
+    
+    def hash_password(self, password):
+        """Hash password using SHA256"""
+        return hashlib.sha256(password.encode()).hexdigest()
+    
+    def verify_credentials(self, username, password):
+        """Verify login credentials"""
+        print(f"🔐 DEBUG AUTH:")
+
+        
+        result = (username == self.admin_username and 
+                password == self.admin_password)
+        print(f"   Final result: {result}")
+        return result
     
     def set_monitor_refs(self, running_threads, thread_consecutive_errors, 
                         thread_last_alert_time, get_all_monitor_items, shutdown_event):
@@ -201,7 +240,29 @@ class MonitorAPI:
     def setup_routes(self):
         """Setup các routes cho API"""
         
+        @self.app.route('/login', methods=['GET', 'POST'])
+        def login():
+            """Login page"""
+            if request.method == 'POST':
+                username = request.form.get('username')
+                password = request.form.get('password')
+                
+                if self.verify_credentials(username, password):
+                    session['authenticated'] = True
+                    return redirect(url_for('dashboard'))
+                else:
+                    return render_template_string(LOGIN_HTML, error="Invalid username or password")
+            
+            return render_template_string(LOGIN_HTML, error=None)
+        
+        @self.app.route('/logout')
+        def logout():
+            """Logout"""
+            session.pop('authenticated', None)
+            return redirect(url_for('login'))
+        
         @self.app.route('/')
+        @self.requires_auth
         def dashboard():
             """Web dashboard"""
             return render_template_string(DASHBOARD_HTML)
@@ -336,14 +397,14 @@ class MonitorAPI:
         
         @self.app.route('/api/logs')
         def api_logs():
-            """API lấy logs gần nhất"""
+            """API lấy logs gần nhất từ logs/log_main.txt"""
             try:
                 lines = int(request.args.get('lines', 50))
-                log_file = 'log.txt'
+                log_file = 'logs/log_main.txt'
                 
                 if not os.path.exists(log_file):
                     return jsonify({
-                        'logs': [],
+                        'logs': ['📝 Log file not found: logs/log_main.txt'],
                         'total_lines': 0,
                         'timestamp': datetime.now().isoformat()
                     })
@@ -360,7 +421,8 @@ class MonitorAPI:
                 })
             except Exception as e:
                 return jsonify({
-                    'error': str(e),
+                    'error': f'Error reading logs: {str(e)}',
+                    'logs': [f'❌ Error: {str(e)}'],
                     'timestamp': datetime.now().isoformat()
                 }), 500
     
@@ -397,7 +459,7 @@ def check_instance_and_get_status():
         # Thử lấy status qua API
         try:
             import requests
-            response = requests.get(f"http://{API_HOST}:{port}/api/status", timeout=5)
+            response = requests.get(f"http://{get_default_host()}:{port}/api/status", timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 print(f"📊 Status: {data['status']}")
@@ -464,13 +526,19 @@ DASHBOARD_HTML = '''
         }
         .refresh-btn { background: #2196F3; color: white; }
         .shutdown-btn { background: #dc3545; color: white; }
+        .logout-btn { background: #6c757d; color: white; }
         .logs-container { max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 4px; }
         .log-line { font-family: monospace; font-size: 12px; margin-bottom: 2px; }
         .loading { text-align: center; color: #666; }
+        .header-actions { text-align: right; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="header-actions">
+            <button class="logout-btn" onclick="window.location.href='/logout'">🚪 Logout</button>
+        </div>
+        
         <div class="card">
             <div class="header">
                 <h1>🖥️ Monitor Service Dashboard</h1>
@@ -612,6 +680,117 @@ DASHBOARD_HTML = '''
         // Initial load
         refreshData();
     </script>
+</body>
+</html>
+'''
+
+# Login HTML Template
+LOGIN_HTML = '''
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Monitor Service - Login</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .login-container {
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+            text-align: center;
+        }
+        .login-header {
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 24px;
+            font-weight: 300;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            text-align: left;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-weight: 500;
+        }
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+            box-sizing: border-box;
+        }
+        .form-control:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        .btn-login:hover {
+            transform: translateY(-1px);
+        }
+        .error {
+            color: #e74c3c;
+            margin-top: 15px;
+            padding: 10px;
+            background: #ffeaea;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .footer {
+            margin-top: 30px;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1 class="login-header">🖥️ Monitor Service</h1>
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+            <button type="submit" class="btn-login">🔐 Login</button>
+        </form>
+        {% if error %}
+            <div class="error">{{ error }}</div>
+        {% endif %}
+        <div class="footer">
+            Monitor Service Web Admin
+        </div>
+    </div>
 </body>
 </html>
 '''
