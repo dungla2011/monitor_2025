@@ -351,6 +351,36 @@ def ping_icmp(host, timeout=5):
     except Exception as e:
         return False, None, f"Ping error: {str(e)}"
 
+def check_tcp_port(host, port, timeout=5):
+    """
+    Kiểm tra TCP port có mở hay không
+    Returns: (is_open: bool, response_time: float or None, error_message: str)
+    """
+    try:
+        import socket
+        
+        start_time = time.time()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(timeout)
+        
+        result = sock.connect_ex((host, int(port)))
+        end_time = time.time()
+        
+        response_time = (end_time - start_time) * 1000  # Convert to milliseconds
+        sock.close()
+        
+        if result == 0:
+            return True, response_time, f"Port {port} is open"
+        else:
+            return False, response_time, f"Port {port} is closed or filtered"
+            
+    except socket.timeout:
+        return False, None, f"TCP timeout after {timeout} seconds"
+    except socket.gaierror as e:
+        return False, None, f"DNS resolution error: {str(e)}"
+    except Exception as e:
+        return False, None, f"TCP check error: {str(e)}"
+
 def ping_web(url, timeout=10):
     """
     Kiểm tra HTTP/HTTPS URL
@@ -498,6 +528,160 @@ def fetch_web_content(url, timeout=10, max_size=102400):
         return False, None, None, "", f"HTTP request error: {str(e)}"
     except Exception as e:
         return False, None, None, "", f"Unexpected error: {str(e)}"
+
+def check_open_port_tcp_then_error(monitor_item, attempt=1, max_attempts=3):
+    """
+    Kiểm tra TCP port và báo lỗi nếu port đang mở (ngược lại với ping_web)
+    URL format: domain:port hoặc ip:port
+    
+    Args:
+        monitor_item: MonitorItem object from database
+        attempt: Lần thử hiện tại (1-3)
+        max_attempts: Số lần thử tối đa
+        
+    Returns:
+        dict: Kết quả kiểm tra
+    """
+    # Parse host:port từ url_check
+    url_check = monitor_item.url_check
+    if ':' not in url_check:
+        return {
+            'success': False,
+            'response_time': None,
+            'message': "❌ Invalid format. Expected 'host:port' (e.g., '192.168.1.1:22' or 'example.com:80')",
+            'details': {'host': None, 'port': None, 'method': 'TCP Port Check (Error if Open)', 'attempt': attempt}
+        }
+    
+    try:
+        host, port_str = url_check.rsplit(':', 1)  # Split from right to handle IPv6 correctly
+        port = int(port_str)
+        
+        if not (1 <= port <= 65535):
+            return {
+                'success': False,
+                'response_time': None,
+                'message': f"❌ Invalid port number: {port}. Must be 1-65535",
+                'details': {'host': host, 'port': port, 'method': 'TCP Port Check (Error if Open)', 'attempt': attempt}
+            }
+            
+    except ValueError:
+        return {
+            'success': False,
+            'response_time': None,
+            'message': f"❌ Cannot parse port from '{url_check}'. Expected 'host:port' format",
+            'details': {'host': None, 'port': None, 'method': 'TCP Port Check (Error if Open)', 'attempt': attempt}
+        }
+    
+    ol1(f"   🔍 TCP Port Check (Error if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...")
+    
+    is_open, response_time, message = check_tcp_port(host, port)
+    
+    # Logic ngược lại: SUCCESS nếu port CLOSED, ERROR nếu port OPEN
+    result = {
+        'success': not is_open,  # SUCCESS nếu port đóng
+        'response_time': response_time,
+        'message': f"Port {port} is {'CLOSED' if not is_open else 'OPEN'} - {'✅ Good' if not is_open else '❌ Alert'}",
+        'details': {
+            'host': host,
+            'port': port,
+            'is_port_open': is_open,
+            'original_message': message,
+            'method': 'TCP Port Check (Error if Open)',
+            'attempt': attempt
+        }
+    }
+    
+    if not is_open:  # Port closed = success
+        ol1(f"   ✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}")
+        return result
+    else:  # Port open = error
+        ol1(f"   ❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}")
+        
+        # Nếu chưa thành công và còn lần thử
+        if attempt < max_attempts:
+            ol1(f"   ⏳ Waiting 3s...")
+            time.sleep(3)
+            return check_open_port_tcp_then_error(monitor_item, attempt + 1, max_attempts)
+        else:
+            ol1(f"   💥 Port still open after {max_attempts} attempts")
+            return result
+
+def check_open_port_tcp_then_valid(monitor_item, attempt=1, max_attempts=3):
+    """
+    Kiểm tra TCP port và báo lỗi nếu port KHÔNG mở (ngược lại với open_port_tcp_then_error)
+    URL format: domain:port hoặc ip:port
+    
+    Args:
+        monitor_item: MonitorItem object from database
+        attempt: Lần thử hiện tại (1-3)
+        max_attempts: Số lần thử tối đa
+        
+    Returns:
+        dict: Kết quả kiểm tra
+    """
+    # Parse host:port từ url_check
+    url_check = monitor_item.url_check
+    if ':' not in url_check:
+        return {
+            'success': False,
+            'response_time': None,
+            'message': "❌ Invalid format. Expected 'host:port' (e.g., '192.168.1.1:80' or 'example.com:443')",
+            'details': {'host': None, 'port': None, 'method': 'TCP Port Check (Valid if Open)', 'attempt': attempt}
+        }
+    
+    try:
+        host, port_str = url_check.rsplit(':', 1)  # Split from right to handle IPv6 correctly
+        port = int(port_str)
+        
+        if not (1 <= port <= 65535):
+            return {
+                'success': False,
+                'response_time': None,
+                'message': f"❌ Invalid port number: {port}. Must be 1-65535",
+                'details': {'host': host, 'port': port, 'method': 'TCP Port Check (Valid if Open)', 'attempt': attempt}
+            }
+            
+    except ValueError:
+        return {
+            'success': False,
+            'response_time': None,
+            'message': f"❌ Cannot parse port from '{url_check}'. Expected 'host:port' format",
+            'details': {'host': None, 'port': None, 'method': 'TCP Port Check (Valid if Open)', 'attempt': attempt}
+        }
+    
+    ol1(f"   🔍 TCP Port Check (Valid if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...")
+    
+    is_open, response_time, message = check_tcp_port(host, port)
+    
+    # Logic bình thường: SUCCESS nếu port OPEN, ERROR nếu port CLOSED
+    result = {
+        'success': is_open,  # SUCCESS nếu port mở
+        'response_time': response_time,
+        'message': f"Port {port} is {'OPEN' if is_open else 'CLOSED'} - {'✅ Good' if is_open else '❌ Alert'}",
+        'details': {
+            'host': host,
+            'port': port,
+            'is_port_open': is_open,
+            'original_message': message,
+            'method': 'TCP Port Check (Valid if Open)',
+            'attempt': attempt
+        }
+    }
+    
+    if is_open:  # Port open = success
+        ol1(f"   ✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}")
+        return result
+    else:  # Port closed = error
+        ol1(f"   ❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}")
+        
+        # Nếu chưa thành công và còn lần thử
+        if attempt < max_attempts:
+            ol1(f"   ⏳ Waiting 3s...")
+            time.sleep(3)
+            return check_open_port_tcp_then_valid(monitor_item, attempt + 1, max_attempts)
+        else:
+            ol1(f"   💥 Port still closed after {max_attempts} attempts")
+            return result
 
 def check_ping_web(monitor_item, attempt=1, max_attempts=3):
     """
@@ -724,6 +908,10 @@ def check_service(monitor_item):
         check_result = check_ping_icmp(monitor_item)
     elif monitor_item.type == 'web_content':
         check_result = check_web_content(monitor_item)
+    elif monitor_item.type == 'open_port_tcp_then_error':
+        check_result = check_open_port_tcp_then_error(monitor_item)
+    elif monitor_item.type == 'open_port_tcp_then_valid':
+        check_result = check_open_port_tcp_then_valid(monitor_item)
     else:
         base_result['message'] = f"❌ Unknown service type: {monitor_item.type}"
         ol1(f"   {base_result['message']}")
