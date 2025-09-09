@@ -11,6 +11,48 @@ from urllib.parse import urlparse
 from datetime import datetime
 from dotenv import load_dotenv
 
+# Parse command line arguments
+def parse_chunk_argument():
+    """Parse --chunk argument từ command line"""
+    chunk_info = None
+    
+    for arg in sys.argv:
+        if arg.startswith('--chunk='):
+            chunk_str = arg.split('=')[1]  # Get "1-300" part
+            try:
+                parts = chunk_str.split('-')
+                if len(parts) == 2:
+                    chunk_number = int(parts[0])  # 1, 2, 3...
+                    chunk_size = int(parts[1])    # 300
+                    chunk_info = {
+                        'number': chunk_number,
+                        'size': chunk_size,
+                        'offset': (chunk_number - 1) * chunk_size,  # 0, 300, 600...
+                        'limit': chunk_size
+                    }
+                    print(f"📦 Chunk mode: #{chunk_number} (offset: {chunk_info['offset']}, limit: {chunk_size})")
+                    break
+            except ValueError:
+                print(f"❌ Invalid chunk format: {chunk_str}. Use format: --chunk=1-300")
+    
+    return chunk_info
+
+# Global chunk info
+CHUNK_INFO = parse_chunk_argument()
+
+def get_api_port():
+    """Get API port, adjusted for chunk mode"""
+    base_port = int(os.getenv('HTTP_PORT', 5005))
+    
+    if CHUNK_INFO:
+        # Offset port by chunk number to avoid conflicts
+        # Chunk 1 -> port 5005, Chunk 2 -> port 5006, etc.
+        chunk_port = base_port + (CHUNK_INFO['number'] - 1)
+        ol1(f"🌐 Chunk mode: API port adjusted to {chunk_port} for chunk #{CHUNK_INFO['number']}")
+        return chunk_port
+    
+    return base_port
+
 # Load environment variables FIRST - check for --test argument  
 if '--test' in sys.argv or 'test' in sys.argv:
     print("🧪 TEST MODE detected - Loading test environment (.env.test)")
@@ -111,7 +153,7 @@ def start_api_server():
     """Khởi động API server trong thread riêng"""
     try:
         ol1("🔧 Initializing API server...")
-        port = int(os.getenv('HTTP_PORT', 5005))
+        port = get_api_port()  # Use chunk-aware port
         host = os.getenv('HTTP_HOST', '127.0.0.1')
         
         api = MonitorAPI(host=host, port=port)
@@ -1393,19 +1435,48 @@ def show_thread_status():
 
 def get_enabled_items_from_db():
     """
-    Lấy tất cả enabled monitor items từ database
+    Lấy enabled monitor items từ database với chunk support
+    Sử dụng CHUNK_INFO để lấy theo phần
     """
     try:
         session = SessionLocal()
-        items = session.query(MonitorItem).filter(
+        
+        # Base query
+        query = session.query(MonitorItem).filter(
             MonitorItem.url_check.isnot(None),
             MonitorItem.url_check != '',
             MonitorItem.enable == True
-        ).all()
+        ).order_by(MonitorItem.id)  # Đảm bảo thứ tự consistent
+        
+        # Apply chunk nếu có
+        if CHUNK_INFO:
+            offset = CHUNK_INFO['offset']
+            limit = CHUNK_INFO['limit']
+            
+            # Get total count first
+            total_count = query.count()
+            ol1(f"📊 Total enabled items in DB: {total_count}")
+            
+            # Apply offset and limit
+            items = query.offset(offset).limit(limit).all()
+            
+            ol1(f"📦 Chunk #{CHUNK_INFO['number']}: Got {len(items)} items "
+                f"(offset: {offset}, limit: {limit})")
+            
+            if len(items) == 0:
+                ol1(f"⚠️  Chunk #{CHUNK_INFO['number']} is empty - no more items at offset {offset}")
+        else:
+            # No chunk - get all enabled items
+            items = query.all()
+            ol1(f"📊 Got {len(items)} enabled items (no chunk mode)")
+        
         session.close()
         return items
+        
     except Exception as e:
         ol1(f"❌ Error getting enabled items: {e}")
+        import traceback
+        ol1(f"❌ Traceback: {traceback.format_exc()}")
         return []
 
 def get_running_item_ids():
@@ -1578,7 +1649,7 @@ def main_manager_loop():
                 item = next((item for item in enabled_items if item.id == item_id), None)
                 if item:
                     start_monitor_thread(item)
-                    time.sleep(0.1)  # Small delay between starts
+                    time.sleep(0.01)  # Small delay between starts
             
             # Stop threads for disabled items với force stop
             for item_id in items_to_stop:
@@ -1648,7 +1719,7 @@ def main():
             if check_instance_and_get_status():
                 try:
                     import requests
-                    port = int(os.getenv('HTTP_PORT', 5005))
+                    port = get_api_port()
                     response = requests.post(f"http://127.0.0.1:{port}/api/shutdown", timeout=5)
                     if response.status_code == 200:
                         print("✅ Shutdown command sent successfully")
@@ -1659,34 +1730,50 @@ def main():
             return
                 
         elif command == 'manager' or command == 'start':
-            # Kiểm tra single instance dựa trên port
-            is_running, pid, port = instance_manager.is_already_running()
+            # Kiểm tra single instance dựa trên port (chunk-aware)
+            port = get_api_port()
+            instance_manager_check = SingleInstanceManager(port=port)
+            is_running, pid, current_port = instance_manager_check.is_already_running()
             if is_running:
                 host = os.getenv('HTTP_HOST', '127.0.0.1')
-                print(f"⚠️ Monitor service is already running on port {port}")
+                print(f"⚠️ Monitor service is already running on port {current_port}")
                 if pid:
                     print(f"   PID: {pid}")
                 else:
                     # Thử tìm process đang sử dụng port
-                    process_info = instance_manager.get_process_using_port(port)
+                    process_info = instance_manager_check.get_process_using_port(current_port)
                     if process_info:
                         pid_found, name, cmdline = process_info
-                        print(f"   Process using port {port}: PID {pid_found} - {name}")
+                        print(f"   Process using port {current_port}: PID {pid_found} - {name}")
                         print(f"   Command: {cmdline}")
                     else:
-                        print(f"   Unknown process is using port {port}")
+                        print(f"   Unknown process is using port {current_port}")
                         
-                print(f"🌐 Dashboard: http://{host}:{port}")
+                print(f"🌐 Dashboard: http://{host}:{current_port}")
                 print("Use 'python monitor_service.py stop' to shutdown")
                 return
             
-            # Tạo lock file
+            # Tạo lock file với chunk-specific name
+            lock_file = "monitor_service.lock"
+            if CHUNK_INFO:
+                lock_file = f"monitor_service_chunk_{CHUNK_INFO['number']}.lock"
+            
+            instance_manager = SingleInstanceManager(lock_file=lock_file, port=port)
             if not instance_manager.create_lock_file():
                 print("❌ Failed to create lock file. Exiting.")
                 return
                 
             ol1("🚀 Starting Monitor Service with HTTP API...")
             ol1(f"🔒 Instance locked (PID: {os.getpid()})")
+            
+            # Show chunk info if using chunk mode
+            if CHUNK_INFO:
+                ol1(f"📦 CHUNK MODE: Processing chunk #{CHUNK_INFO['number']} "
+                    f"(size: {CHUNK_INFO['size']}, offset: {CHUNK_INFO['offset']})")
+                ol1(f"📝 This instance will only process items {CHUNK_INFO['offset']+1} "
+                    f"to {CHUNK_INFO['offset']+CHUNK_INFO['size']}")
+            else:
+                ol1("📊 FULL MODE: Processing all enabled monitor items")
             
             # Start HTTP API server in background thread
             api_thread = threading.Thread(target=start_api_server, daemon=True)
@@ -1733,10 +1820,22 @@ def main():
             print("  python monitor_service.py stop       - Stop running service")
             print("  python monitor_service.py test       - Test first service once")
             print("")
+            print("Chunk Mode (for scaling):")
+            print("  --chunk=1-300      - Process items 1-300 (chunk 1, size 300)")
+            print("  --chunk=2-300      - Process items 301-600 (chunk 2, size 300)")
+            print("  --chunk=3-300      - Process items 601-900 (chunk 3, size 300)")
+            print("  Example: python monitor_service.py start --chunk=1-300")
+            print("")
+            print("Scaling Example (3000 items with 300 per instance):")
+            print("  Terminal 1: python monitor_service.py start --chunk=1-300")
+            print("  Terminal 2: python monitor_service.py start --chunk=2-300")
+            print("  Terminal 3: python monitor_service.py start --chunk=3-300")
+            print("  ... (up to 10 terminals for 3000 items)")
+            print("")
             print("Test Mode:")
             print("  --test flag loads .env.test (port 5006, test database)")
             print("")
-            port = int(os.getenv('HTTP_PORT', 5005))
+            port = get_api_port()
             print(f"HTTP Dashboard: http://127.0.0.1:{port}")
             print("API Endpoints:")
             print("  GET  /api/status    - Service status")
