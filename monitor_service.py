@@ -1724,7 +1724,7 @@ def main():
                 ol1("❌ No enabled monitor items found in database")
         else:
             print("Monitor Service 2025 - Single Instance with HTTP API")
-            print("="*60)
+            print("="*60) 
             print("Usage:")
             print("  python monitor_service.py start      - Start monitor service with API")
             print("  python monitor_service.py start --test - Start with test environment (.env.test)")

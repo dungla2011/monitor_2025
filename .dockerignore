@@ -1,0 +1,55 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/*.txt
+*.log
+
+# Test files
+test_*.py
+*_test.py
+tests/
+
+# Data files that shouldn't be in image
+data/
+*.db
+*.sqlite
+
+# Lock files
+monitor_service.lock
+*.lock
+
+# Documentation
+README.md
+*.md
+docs/
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore

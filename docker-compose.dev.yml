@@ -1,0 +1,89 @@
+version: '3.8'
+
+# Development version with code mounting
+services:
+  monitor-service:
+    build: .
+    container_name: monitor-service-dev
+    restart: unless-stopped
+    ports:
+      - "5005:5005"
+    environment:
+      # Database Configuration
+      - DB_HOST=mysql
+      - DB_PORT=3306
+      - DB_USER=monitor_user
+      - DB_PASSWORD=monitor_password
+      - DB_NAME=monitor_db
+      - DB_CHARSET=utf8mb4
+      
+      # HTTP API Server Configuration
+      - HTTP_PORT=5005
+      - HTTP_HOST=0.0.0.0
+      
+      # Admin Domain Configuration
+      - ADMIN_DOMAIN=monitor.mytree.vn
+      
+      # Web Admin Authentication
+      - WEB_ADMIN_USERNAME=admin
+      - WEB_ADMIN_PASSWORD=qqqppp@123
+    
+    volumes:
+      # Mount source code for development
+      - .:/app
+      - ./logs:/app/logs
+      - ./data:/app/data
+    
+    depends_on:
+      mysql:
+        condition: service_healthy
+    
+    networks:
+      - monitor-network
+    
+    # Override default command for development
+    command: ["python", "monitor_service.py", "start"]
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/api/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mysql:
+    image: mysql:8.0
+    container_name: monitor-mysql-dev
+    restart: unless-stopped
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=monitor_db
+      - MYSQL_USER=monitor_user
+      - MYSQL_PASSWORD=monitor_password
+      - MYSQL_CHARACTER_SET_SERVER=utf8mb4
+      - MYSQL_COLLATION_SERVER=utf8mb4_unicode_ci
+    
+    volumes:
+      - mysql_data_dev:/var/lib/mysql
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    
+    ports:
+      - "3306:3306"
+    
+    networks:
+      - monitor-network
+    
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  mysql_data_dev:
+    driver: local
+
+networks:
+  monitor-network:
+    driver: bridge

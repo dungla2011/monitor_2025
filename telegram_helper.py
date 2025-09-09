@@ -39,7 +39,7 @@ def send_telegram_message(bot_token, chat_id, message):
             'text': message,
             'parse_mode': 'HTML',  # Hỗ trợ HTML formatting
             'disable_web_page_preview': True  # Tắt preview của URL
-        }
+        } 
         
         # Kiểm tra proxy từ environment variables
         proxies = None
