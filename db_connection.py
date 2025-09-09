@@ -22,7 +22,17 @@ encoded_password = quote_plus(DB_PASSWORD) if DB_PASSWORD else ""
 DATABASE_URL = f"mysql+pymysql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 # Create SQLAlchemy engine
-engine = create_engine(DATABASE_URL, echo=False)  # echo=False để tắt SQL queries logging
+# engine = create_engine(DATABASE_URL, echo=False)  # echo=False để tắt SQL queries logging
+
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=50,        # Tăng từ 5 lên 50
+    max_overflow=100,    # Tăng từ 10 lên 100  
+    pool_timeout=60,     # Tăng timeout lên 60s
+    pool_recycle=3600,   # Recycle connections sau 1h
+    pool_pre_ping=True,   # Test connection trước khi dùng
+    echo=False
+)
 
 # Create session factory
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

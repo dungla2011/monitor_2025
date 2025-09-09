@@ -62,6 +62,7 @@ else:
 
 # Now import modules that depend on environment variables
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import text
 from db_connection import engine
 from models import MonitorItem, get_telegram_config_for_monitor_item, is_alert_time_allowed
 from telegram_helper import send_telegram_alert, send_telegram_recovery
@@ -149,6 +150,138 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
+# === DATABASE OPERATIONS ===
+
+def get_db_session_main_thread(retry_delay=10):
+    """
+    DB session cho MAIN THREAD - retry vô hạn cho đến khi DB sống lại
+    Dùng cho main thread operations (startup, management, etc.)
+    """
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            session = SessionLocal()
+            # Test connection
+            session.execute(text("SELECT 1"))
+            if attempt > 1:
+                ol1(f"✅ DATABASE RECOVERED after {attempt-1} failed attempts (main thread)")
+            return session
+        except Exception as e:
+            if session:
+                session.close()
+            
+            ol1(f"⚠️ Main thread DB connection failed (attempt {attempt}): {e}")
+            ol1(f"🔄 Main thread retrying in {retry_delay} seconds... (will retry forever)")
+            time.sleep(retry_delay)
+
+def get_db_session_worker_thread():
+    """
+    DB session cho WORKER THREAD - fail fast, không retry
+    Nếu DB lỗi thì raise exception để worker thread die
+    Main thread sẽ detect và restart worker thread
+    """
+    try:
+        session = SessionLocal()
+        # Test connection
+        session.execute(text("SELECT 1"))
+        return session
+    except Exception as e:
+        ol1(f"💥 Worker thread DB connection failed: {e}")
+        ol1(f"🔥 Worker thread will DIE - main thread will restart it")
+        raise e  # Let worker thread die
+
+def execute_db_operation_main_thread(operation_func, operation_name="DB operation"):
+    """
+    DB operation cho MAIN THREAD - retry vô hạn
+    """
+    while True:
+        session = None
+        try:
+            session = get_db_session_main_thread()
+            result = operation_func(session)
+            session.close()
+            return result
+        except Exception as e:
+            if session:
+                try:
+                    session.rollback()
+                    session.close()
+                except:
+                    pass
+            ol1(f"⚠️ Main thread {operation_name} failed: {e}")
+            ol1(f"🔄 Main thread retrying {operation_name}...")
+
+def execute_db_operation_worker_thread(operation_func, operation_name="DB operation"):
+    """
+    DB operation cho WORKER THREAD - fail fast, không retry
+    """
+    session = None
+    try:
+        session = get_db_session_worker_thread()
+        result = operation_func(session)
+        session.close()
+        return result
+    except Exception as e:
+        if session:
+            try:
+                session.rollback()
+                session.close()
+            except:
+                pass
+        ol1(f"💥 Worker thread {operation_name} failed: {e}")
+        raise e  # Let worker thread die
+
+# === HELPER FUNCTIONS ===
+
+def get_all_monitor_items_main_thread(chunk_info=None):
+    """
+    Lấy tất cả monitor items - cho MAIN THREAD (retry vô hạn)
+    """
+    def db_operation(session):
+        query = session.query(MonitorItem).filter(
+            MonitorItem.url_check.isnot(None),
+            MonitorItem.url_check != '',
+            MonitorItem.enable == True
+        )
+        
+        if chunk_info:
+            items = query.offset(chunk_info['offset']).limit(chunk_info['limit']).all()
+            ol1(f"📊 Retrieved chunk #{chunk_info['number']}: {len(items)} items (offset: {chunk_info['offset']}, limit: {chunk_info['limit']})")
+        else:
+            items = query.all()
+            ol1(f"📊 Retrieved {len(items)} enabled items from DB")
+        
+        return items
+    
+    return execute_db_operation_main_thread(db_operation, "Get all monitor items (main thread)")
+
+def safe_update_monitor_item_worker_thread(monitor_item):
+    """
+    Update monitor item - cho WORKER THREAD (fail fast)
+    Nếu DB lỗi thì worker thread sẽ die
+    """
+    def db_operation(session):
+        db_item = session.query(MonitorItem).filter(MonitorItem.id == monitor_item.id).first()
+        if db_item:
+            db_item.last_check_status = monitor_item.last_check_status
+            db_item.last_check_time = datetime.now()
+            # Update counters if changed
+            if hasattr(monitor_item, 'count_online') and monitor_item.count_online is not None:
+                db_item.count_online = monitor_item.count_online
+            if hasattr(monitor_item, 'count_offline') and monitor_item.count_offline is not None:
+                db_item.count_offline = monitor_item.count_offline
+            session.commit()
+            return True
+        return False
+    
+    try:
+        return execute_db_operation_worker_thread(db_operation, f"Update monitor item {monitor_item.id} (worker thread)")
+    except Exception as e:
+        ol1(f"💥 Worker thread failed to update monitor item {monitor_item.id}: {e}")
+        ol1(f"🔥 This worker thread will die now!")
+        raise e  # Let worker thread die
+
 def start_api_server():
     """Khởi động API server trong thread riêng"""
     try:
@@ -178,17 +311,11 @@ def start_api_server():
         ol1(f"Error details: {traceback.format_exc()}")
 
 def get_all_monitor_items():
-    """Hàm helper để API có thể truy cập tất cả monitor items"""
-    try:
-        session = SessionLocal()
-        items = session.query(MonitorItem).filter(
-            MonitorItem.deleted_at.is_(None)  # Chưa bị xóa
-        ).all()
-        session.close()
-        return items
-    except Exception as e:
-        ol1(f"❌ Error getting all monitor items: {e}")
-        return []
+    """
+    Hàm helper để API có thể truy cập tất cả monitor items
+    Sử dụng main thread logic (retry vô hạn)
+    """
+    return get_all_monitor_items_main_thread(CHUNK_INFO)
 
 def send_telegram_notification(monitor_item, is_error=True, error_message="", response_time=None):
     """
@@ -1172,22 +1299,17 @@ def check_service(monitor_item):
 
 def get_monitor_item_by_id(item_id):
     """
-    Lấy monitor item từ database theo ID
-    
-    Args:
-        item_id: ID của monitor item
-        
-    Returns:
-        MonitorItem object hoặc None nếu không tìm thấy
+    Lấy monitor item từ database theo ID - worker thread version (fail fast)
     """
+    def db_operation(session):
+        return session.query(MonitorItem).filter(MonitorItem.id == item_id).first()
+    
     try:
-        session = SessionLocal()
-        item = session.query(MonitorItem).filter(MonitorItem.id == item_id).first()
-        session.close()
-        return item
+        return execute_db_operation_worker_thread(db_operation, f"Get monitor item {item_id} (worker thread)")
     except Exception as e:
-        ol1(f"❌ Error getting monitor item {item_id}: {e}")
-        return None
+        ol1(f"💥 Worker thread failed to get monitor item {item_id}: {e}", item_id)
+        ol1(f"🔥 This worker thread will die now!", item_id)
+        raise e  # Let worker thread die
 
 def update_monitor_item(monitor_item):
     """
@@ -1351,11 +1473,8 @@ def monitor_service_thread(monitor_item):
                             error_message=result['message']
                         )
 
-                    # Cập nhật database
-                    try:
-                        update_monitor_item(monitor_item) 
-                    except Exception as e:
-                        ol1(f"❌ [Thread {monitor_item.id}] Error updating database: {e}")
+                    # Cập nhật database - sử dụng worker thread logic (fail fast)
+                    safe_update_monitor_item_worker_thread(monitor_item)
 
                     # Hiển thị kết quả ngắn gọn
                     status = "✅ SUCCESS" if result['success'] else "❌ FAILED"
@@ -1475,8 +1594,8 @@ def get_enabled_items_from_db():
         
     except Exception as e:
         ol1(f"❌ Error getting enabled items: {e}")
-        import traceback
-        ol1(f"❌ Traceback: {traceback.format_exc()}")
+        # import traceback
+        # ol1(f"❌ Traceback: {traceback.format_exc()}")
         return []
 
 def get_running_item_ids():
@@ -1543,14 +1662,16 @@ def force_stop_monitor_thread(item_id):
             
             # Set stop flag cho thread đó
             stop_flags[item_id] = True
-            
+
+            # Khong cho, thread stop hay khong khong quan trọng
+
             # Chờ thread stop (timeout 10 giây)
-            if thread_info['thread'].is_alive():
-                thread_info['thread'].join(timeout=10)
-                if thread_info['thread'].is_alive():
-                    ol1(f"⚠️ [Main] Thread {item_id} did not stop within timeout (may need process restart)")
-                else:
-                    ol1(f"✅ [Main] Thread {item_id} stopped successfully")
+            # if thread_info['thread'].is_alive():
+            #     thread_info['thread'].join(timeout=10)
+            #     if thread_info['thread'].is_alive():
+            #         ol1(f"⚠️ [Main] Thread {item_id} did not stop within timeout (may need process restart)")
+            #     else:
+            #         ol1(f"✅ [Main] Thread {item_id} stopped successfully")
             
             return True
     return False
@@ -1579,6 +1700,7 @@ def stop_monitor_thread(item_id):
 def cleanup_dead_threads():
     """
     Dọn dẹp các threads đã chết
+    Đặc biệt track những threads chết do DB error (để restart)
     """
     with thread_lock:
         dead_threads = []
@@ -1588,7 +1710,18 @@ def cleanup_dead_threads():
         
         for item_id in dead_threads:
             thread_info = running_threads.pop(item_id)
-            ol1(f"🧹 [Main] Cleaned up dead thread: {thread_info['item'].name} (ID: {item_id})")
+            thread_name = thread_info['item'].name
+            
+            # Check if thread died due to DB error (thread finished but process still running)
+            if shutdown_event.is_set():
+                ol1(f"🧹 [Main] Cleaned up thread during shutdown: {thread_name} (ID: {item_id})")
+            else:
+                ol1(f"💀 [Main] DEAD THREAD detected: {thread_name} (ID: {item_id})")
+                ol1(f"🔄 [Main] This thread likely died due to DB error - will be restarted automatically")
+                
+            # Clear stop flag
+            if item_id in stop_flags:
+                del stop_flags[item_id]
 
 def main_manager_loop():
     """
