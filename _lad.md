@@ -57,3 +57,22 @@ sau đó kiểm tra nội dung trên 2 trường
 - result_valid : gồm các chuỗi con cách nhau bởi dấu phẩy, nếu content web có chứa tất cả các chuỗi con thì check là success (trim các chuỗi con trước khi check)
 - result_error: gồm các chuỗi con cách nhau bởi dấu phẩy, nếu content web có chứa một trong các chuỗi con thì check là error (trim các chuỗi con trước khi check)
 
+----------------
+
+Service:
+/etc/systemd/system/monitor.service
+
+[Unit]
+Description=Monitor Service
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/var/www/monitor_v2
+ExecStart=/var/www/monitor_v2/venv/bin/python3 /var/www/monitor_v2/monitor_service.py manager
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target
+

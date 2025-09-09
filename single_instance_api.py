@@ -176,10 +176,117 @@ class MonitorAPI:
         from functools import wraps
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            if 'authenticated' not in session or not session['authenticated']:
-                return redirect(url_for('login'))
-            return f(*args, **kwargs)
+            # Check session authentication first
+            if 'authenticated' in session and session['authenticated']:
+                return f(*args, **kwargs)
+            
+            # Check Bearer token authentication
+            auth_header = request.headers.get('Authorization')
+            if auth_header and auth_header.startswith('Bearer '):
+                token = auth_header.split(' ')[1]
+                if self.verify_bearer_token(token):
+                    return f(*args, **kwargs)
+            
+            # Check Basic Auth
+            auth = request.authorization
+            if auth and self.verify_credentials(auth.username, auth.password):
+                return f(*args, **kwargs)
+            
+            # If this is an API request, return JSON error
+            if request.path.startswith('/api/'):
+                return jsonify({'error': 'Authentication required'}), 401
+            
+            # Otherwise redirect to login page
+            return redirect(url_for('login'))
         return decorated_function
+    
+    def verify_bearer_token(self, token):
+        """Verify bearer token (base64 encoded username:password or JWT)"""
+        try:
+            import base64
+            
+            # Check if it's a JWT token (contains two dots)
+            if token.count('.') == 2:
+                return self.verify_jwt_token(token)
+            
+            # Otherwise, treat as simple base64 token
+            decoded = base64.b64decode(token).decode('utf-8')
+            if ':' in decoded:
+                username, password = decoded.split(':', 1)
+                return self.verify_credentials(username, password)
+        except Exception:
+            pass
+        return False
+    
+    def verify_jwt_token(self, token):
+        """Verify JWT token with expiration check"""
+        try:
+            import json
+            import base64
+            from datetime import datetime
+            
+            parts = token.split('.')
+            if len(parts) != 3:
+                return False
+            
+            header_b64, payload_b64, signature = parts
+            
+            # Decode payload
+            # Add padding if needed
+            payload_b64 += '=' * (4 - len(payload_b64) % 4)
+            payload_json = base64.b64decode(payload_b64).decode()
+            payload = json.loads(payload_json)
+            
+            # Check expiration
+            if 'exp' in payload:
+                exp_time = datetime.fromtimestamp(payload['exp'])
+                if datetime.utcnow() > exp_time:
+                    return False  # Token expired
+            
+            # Verify signature (simple check)
+            expected_signature_data = f"{header_b64}.{payload_b64}.{self.admin_password}"
+            expected_signature = base64.b64encode(expected_signature_data.encode()).decode().rstrip('=')[:32]
+            
+            return signature == expected_signature and payload.get('username') == self.admin_username
+            
+        except Exception as e:
+            print(f"JWT verification error: {e}")
+            return False
+    
+    def generate_bearer_token(self, username, password):
+        """Generate bearer token for API access (simple base64, no expiration)"""
+        import base64
+        token_string = f"{username}:{password}"
+        return base64.b64encode(token_string.encode()).decode('utf-8')
+    
+    def generate_jwt_token(self, username, password, expires_in_hours=24):
+        """Generate JWT token with expiration (optional)"""
+        if not self.verify_credentials(username, password):
+            return None
+            
+        import json
+        import base64
+        from datetime import datetime, timedelta
+        
+        # JWT Header
+        header = {"typ": "JWT", "alg": "HS256"}
+        
+        # JWT Payload with expiration
+        payload = {
+            "username": username,
+            "iat": datetime.utcnow().timestamp(),
+            "exp": (datetime.utcnow() + timedelta(hours=expires_in_hours)).timestamp()
+        }
+        
+        # Simple JWT implementation (for demo purposes)
+        header_b64 = base64.b64encode(json.dumps(header).encode()).decode().rstrip('=')
+        payload_b64 = base64.b64encode(json.dumps(payload).encode()).decode().rstrip('=')
+        
+        # Simple signature (in production, use proper JWT library)
+        signature_data = f"{header_b64}.{payload_b64}.{self.admin_password}"
+        signature = base64.b64encode(signature_data.encode()).decode().rstrip('=')[:32]
+        
+        return f"{header_b64}.{payload_b64}.{signature}"
     
     def hash_password(self, password):
         """Hash password using SHA256"""
@@ -265,9 +372,13 @@ class MonitorAPI:
         @self.requires_auth
         def dashboard():
             """Web dashboard"""
-            return render_template_string(DASHBOARD_HTML)
+            # Get domain from environment for Home button
+            admin_domain = os.getenv('ADMIN_DOMAIN', 'localhost')
+            home_url = f"https://{admin_domain}/"
+            return render_template_string(DASHBOARD_HTML, home_url=home_url)
         
         @self.app.route('/api/status')
+        @self.requires_auth
         def api_status():
             """API status tổng quan"""
             try:
@@ -303,6 +414,7 @@ class MonitorAPI:
                 }), 500
         
         @self.app.route('/api/monitors')
+        @self.requires_auth
         def api_monitors():
             """API danh sách monitors"""
             try:
@@ -343,6 +455,7 @@ class MonitorAPI:
                 }), 500
         
         @self.app.route('/api/threads')
+        @self.requires_auth
         def api_threads():
             """API thông tin threads"""
             try:
@@ -372,6 +485,7 @@ class MonitorAPI:
                 }), 500
         
         @self.app.route('/api/shutdown', methods=['POST'])
+        @self.requires_auth
         def api_shutdown():
             """API shutdown service"""
             try:
@@ -396,6 +510,7 @@ class MonitorAPI:
                 }), 500
         
         @self.app.route('/api/logs')
+        @self.requires_auth
         def api_logs():
             """API lấy logs gần nhất từ logs/log_main.txt"""
             try:
@@ -425,6 +540,39 @@ class MonitorAPI:
                     'logs': [f'❌ Error: {str(e)}'],
                     'timestamp': datetime.now().isoformat()
                 }), 500
+        
+        @self.app.route('/api/token', methods=['POST'])
+        def api_token():
+            """API to generate bearer token for API access"""
+            data = request.get_json() or {}
+            token_type = data.get('type', 'simple')  # 'simple' or 'jwt'
+            expires_hours = int(data.get('expires_hours', 24))
+            
+            auth = request.authorization
+            if not auth or not self.verify_credentials(auth.username, auth.password):
+                return jsonify({'error': 'Invalid credentials'}), 401
+            
+            if token_type == 'jwt':
+                token = self.generate_jwt_token(auth.username, auth.password, expires_hours)
+                if not token:
+                    return jsonify({'error': 'Failed to generate JWT token'}), 500
+                    
+                return jsonify({
+                    'token': token,
+                    'type': 'Bearer JWT',
+                    'expires': f'{expires_hours} hours',
+                    'usage': f'Authorization: Bearer {token}',
+                    'timestamp': datetime.now().isoformat()
+                })
+            else:
+                token = self.generate_bearer_token(auth.username, auth.password)
+                return jsonify({
+                    'token': token,
+                    'type': 'Bearer Simple',
+                    'expires': 'Never (until credentials change)',
+                    'usage': f'Authorization: Bearer {token}',
+                    'timestamp': datetime.now().isoformat()
+                })
     
     def start_server(self):
         """Khởi động HTTP server"""
@@ -488,15 +636,15 @@ DASHBOARD_HTML = '''
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
             margin: 0; 
-            padding: 20px; 
+            padding: 10px; 
             background: #f5f5f5; 
         }
         .container { max-width: 1200px; margin: 0 auto; }
         .card { 
             background: white; 
             border-radius: 8px; 
-            padding: 20px; 
-            margin-bottom: 20px; 
+            padding: 10px; 
+            margin-bottom: 10px; 
             box-shadow: 0 2px 4px rgba(0,0,0,0.1); 
         }
         .header { text-align: center; color: #333; }
@@ -527,6 +675,7 @@ DASHBOARD_HTML = '''
         .refresh-btn { background: #2196F3; color: white; }
         .shutdown-btn { background: #dc3545; color: white; }
         .logout-btn { background: #6c757d; color: white; }
+        .home-btn { background: #28a745; color: white; margin-right: 10px; }
         .logs-container { max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 15px; border-radius: 4px; }
         .log-line { font-family: monospace; font-size: 12px; margin-bottom: 2px; }
         .loading { text-align: center; color: #666; }
@@ -536,6 +685,7 @@ DASHBOARD_HTML = '''
 <body>
     <div class="container">
         <div class="header-actions">
+            <button class="home-btn" onclick="window.location.href='{{ home_url }}'">🏠 Home</button>
             <button class="logout-btn" onclick="window.location.href='/logout'">🚪 Logout</button>
         </div>
         
@@ -567,6 +717,22 @@ DASHBOARD_HTML = '''
             <div id="logs-container" class="logs-container">
                 <div class="loading">Loading...</div>
             </div>
+        </div>
+
+        <div class="card">
+            <h2>🔐 API Authentication</h2>
+            <p><strong>All API endpoints require authentication:</strong></p>
+            <ul>
+                <li><strong>Web Session:</strong> Login via this page</li>
+                <li><strong>Basic Auth:</strong> Use username/password from .env</li>
+                <li><strong>Bearer Token:</strong> POST to <code>/api/token</code> with Basic Auth to get token</li>
+            </ul>
+            <p><strong>Example with curl:</strong></p>
+            <pre><code># Get token
+curl -u admin:qqqppp@123 -X POST http://127.0.0.1:5005/api/token
+
+# Use token
+curl -H "Authorization: Bearer &lt;token&gt;" http://127.0.0.1:5005/api/status</code></pre>
         </div>
     </div>
 
