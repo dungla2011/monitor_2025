@@ -149,7 +149,49 @@ def get_telegram_config_for_monitor_item(monitor_item_id):
         print(f"❌ Error getting telegram config for monitor item {monitor_item_id}: {e}")
         return None
 
-def get_all_alert_configs_for_monitor_item(monitor_item_id):
+def get_webhook_config_for_monitor_item(monitor_item_id):
+    """
+    Lấy cấu hình webhook cho một monitor item
+    
+    Args:
+        monitor_item_id (int): ID của monitor item
+        
+    Returns:
+        dict: {'webhook_url': str, 'webhook_name': str} hoặc None nếu không tìm thấy
+    """
+    try:
+        session = SessionLocal()
+        
+        # Join 3 bảng để lấy webhook config
+        result = session.query(MonitorConfig.alert_config, MonitorConfig.name).join(
+            MonitorAndConfig, MonitorConfig.id == MonitorAndConfig.config_id
+        ).filter(
+            MonitorAndConfig.monitor_item_id == monitor_item_id,
+            MonitorConfig.alert_type == 'webhook'
+        ).first()
+        
+        session.close()
+        
+        if not result or not result.alert_config:
+            return None
+            
+        # Parse alert_config: webhook URL
+        webhook_url = result.alert_config.strip()
+        webhook_name = result.name or f"Webhook for Monitor {monitor_item_id}"
+        
+        # Validate URL format
+        if not webhook_url.startswith(('http://', 'https://')):
+            print(f"⚠️ Invalid webhook URL format: {webhook_url}")
+            return None
+            
+        return {
+            'webhook_url': webhook_url,
+            'webhook_name': webhook_name
+        }
+        
+    except Exception as e:
+        print(f"❌ Error getting webhook config for monitor item {monitor_item_id}: {e}")
+        return None
     """
     Lấy tất cả cấu hình alert cho một monitor item
     

@@ -78,6 +78,7 @@ from sqlalchemy import text
 from db_connection import engine
 from models import MonitorItem, get_telegram_config_for_monitor_item, is_alert_time_allowed
 from telegram_helper import send_telegram_alert, send_telegram_recovery
+from webhook_helper import send_webhook_alert, send_webhook_recovery, get_webhook_config_for_monitor_item
 from single_instance_api import SingleInstanceManager, MonitorAPI, check_instance_and_get_status
 from utils import ol1, class_send_alert_of_thread, class_send_alert_of_thread, format_response_time, safe_get_env_int, safe_get_env_bool, validate_url, generate_thread_name, format_counter_display
 
@@ -482,6 +483,94 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
         ol1(f"❌ [Thread {monitor_item.id}] Telegram notification error: {e}", monitor_item)
 
 
+def send_webhook_notification(monitor_item, is_error=True, error_message="", response_time=None):
+    """
+    Gửi webhook notification (chỉ 1 lần khi error và 1 lần khi recovery)
+    
+    Args:
+        monitor_item: MonitorItem object
+        is_error (bool): True nếu là lỗi, False nếu là phục hồi
+        error_message (str): Thông báo lỗi
+        response_time (float): Thời gian phản hồi (ms) cho trường hợp phục hồi
+    """
+    try:
+        thread_id = monitor_item.id
+        alert_manager = get_alert_manager(thread_id)
+        
+        # Lấy webhook config
+        webhook_config = get_webhook_config_for_monitor_item(monitor_item.id)
+        if not webhook_config:
+            return  # Không có webhook config
+        
+        webhook_url = webhook_config['webhook_url']
+        webhook_name = webhook_config['webhook_name']
+        
+        if is_error:
+            # Kiểm tra có nên gửi webhook error không (chỉ lần đầu lỗi)
+            if not alert_manager.should_send_webhook_error():
+                ol1(f"🔕 [Thread {thread_id}] Webhook error already sent, skipping", monitor_item)
+                return
+            
+            # Gửi webhook error
+            consecutive_errors = alert_manager.get_consecutive_error_count()
+            enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
+            
+            result = send_webhook_alert(
+                webhook_url=webhook_url,
+                service_name=monitor_item.name,
+                service_url=monitor_item.url_check,
+                error_message=enhanced_error_message,
+                alert_type="error",
+                monitor_id=monitor_item.id,
+                consecutive_errors=consecutive_errors,
+                check_interval_seconds=monitor_item.check_interval_seconds,
+                webhook_name=webhook_name
+            )
+            
+            if result:
+                alert_manager.mark_webhook_error_sent()
+                ol1(f"🪝 [Thread {thread_id}] Webhook error sent successfully to {webhook_name}", monitor_item)
+            else:
+                ol1(f"❌ [Thread {thread_id}] Webhook error failed to {webhook_name}", monitor_item)
+                
+        else:
+            # Phục hồi - kiểm tra có nên gửi webhook recovery không
+            if not alert_manager.should_send_webhook_recovery():
+                # Kiểm tra lý do cụ thể
+                with alert_manager._lock:
+                    if not alert_manager.thread_webhook_error_sent:
+                        ol1(f"🔕 [Thread {thread_id}] Webhook recovery skipped: No previous error sent", monitor_item)
+                    elif alert_manager.thread_webhook_recovery_sent:
+                        ol1(f"🔕 [Thread {thread_id}] Webhook recovery skipped: Already sent", monitor_item)
+                    else:
+                        ol1(f"🔕 [Thread {thread_id}] Webhook recovery skipped: Unknown reason", monitor_item)
+                return
+            
+            # Gửi webhook recovery
+            recovery_message = f"Service '{monitor_item.name}' is back online"
+            if response_time:
+                recovery_message += f" (Response time: {response_time:.0f}ms)"
+            
+            result = send_webhook_recovery(
+                webhook_url=webhook_url,
+                service_name=monitor_item.name,
+                service_url=monitor_item.url_check,
+                recovery_message=recovery_message,
+                monitor_id=monitor_item.id,
+                response_time=response_time or 0,
+                webhook_name=webhook_name
+            )
+            
+            if result:
+                alert_manager.mark_webhook_recovery_sent()
+                ol1(f"🪝 [Thread {thread_id}] Webhook recovery sent successfully to {webhook_name}", monitor_item)
+            else:
+                ol1(f"❌ [Thread {thread_id}] Webhook recovery failed to {webhook_name}", monitor_item)
+                
+    except Exception as e:
+        ol1(f"❌ [Thread {monitor_item.id}] Webhook notification error: {e}", monitor_item)
+
+
 def check_service(monitor_item):
     """
     Kiểm tra một dịch vụ dựa trên thông tin trong database với retry logic
@@ -660,6 +749,7 @@ def monitor_service_thread(monitor_item):
     # Reset counter lỗi liên tiếp khi start thread
     alert_manager = get_alert_manager(monitor_item.id)
     alert_manager.reset_consecutive_error()
+    alert_manager.reset_webhook_flags()  # Reset webhook flags
     
     ol1(f"🚀[Thread {monitor_item.id}] Starting monitoring: {monitor_item.name}")
     ol1(f"[Thread {monitor_item.id}] Interval: {check_interval} seconds")
@@ -714,10 +804,22 @@ def monitor_service_thread(monitor_item):
                             is_error=False,
                             response_time=result['response_time']
                         )
+                        # Gửi webhook recovery
+                        send_webhook_notification(
+                            monitor_item=monitor_item,
+                            is_error=False,
+                            response_time=result['response_time']
+                        )
 
                     if not result['success']:
                         # Service chuyển từ OK/Unknown -> lỗi
                         send_telegram_notification(
+                            monitor_item=monitor_item,
+                            is_error=True,
+                            error_message=result['message']
+                        )
+                        # Gửi webhook error
+                        send_webhook_notification(
                             monitor_item=monitor_item,
                             is_error=True,
                             error_message=result['message']
@@ -753,21 +855,21 @@ def monitor_service_thread(monitor_item):
             has_changes, changes = compare_monitor_item_fields(original_item, current_item)
             
             if has_changes:
-                ol1(f"\n🔄 [Thread {monitor_item.id}] Configuration changes detected for {monitor_item.name}:")
+                ol1(f"🔄 [Thread {monitor_item.id}] Configuration changes detected for {monitor_item.name}:", monitor_item)
                 for change in changes:
                     ol1(f"- {change}")
-                ol1(f"🛑 [Thread {monitor_item.id}] Stopping thread due to config changes after {check_count} checks.")
+                ol1(f"🛑 [Thread {monitor_item.id}] Stopping thread due to config changes after {check_count} checks.", monitor_item)
                 break
             
             # Kiểm tra enable status riêng (để có log rõ ràng)
             if not current_item.enable:
-                ol1(f"\n🛑 [Thread {monitor_item.id}] Monitor disabled (enable=0). Stopping {monitor_item.name} after {check_count} checks.")
+                ol1(f"\n🛑 [Thread {monitor_item.id}] Monitor disabled (enable=0). Stopping {monitor_item.name} after {check_count} checks.", monitor_item)
                 break
                 
     except KeyboardInterrupt:
-        ol1(f"\n🛑 [Thread {monitor_item.id}] Monitor stopped by user after {check_count} checks.")
+        ol1(f"\n🛑 [Thread {monitor_item.id}] Monitor stopped by user after {check_count} checks.", monitor_item)
     except Exception as e:
-        ol1(f"\n❌ [Thread {monitor_item.id}] Monitor error for {monitor_item.name}: {e}")
+        ol1(f"\n❌ [Thread {monitor_item.id}] Monitor error for {monitor_item.name}: {e}",monitor_item)
     finally:
         # Remove thread from tracking và clear stop flag
         with thread_lock:
@@ -777,7 +879,7 @@ def monitor_service_thread(monitor_item):
                 del stop_flags[monitor_item.id]
             # Cleanup alert manager khi thread dừng
             cleanup_alert_manager(monitor_item.id)
-            ol1(f"🧹 [Thread {monitor_item.id}] Thread cleanup completed for {monitor_item.name}")
+            ol1(f"🧹 [Thread {monitor_item.id}] Thread cleanup completed for {monitor_item.name}", monitor_item)
 
 def show_thread_status():
     """
@@ -896,16 +998,17 @@ def start_monitor_thread(monitor_item):
     thread.start()
     return thread
 
-def force_stop_monitor_thread(item_id):
+def force_stop_monitor_thread(monitor_item):
     """
     Force stop một monitor thread bằng cách set stop flag
     (MainThread có thể "kill" thread này)
     """
+    item_id = monitor_item.id
     with thread_lock:
         if item_id in running_threads:
             thread_info = running_threads[item_id]
             item_name = thread_info['item'].name
-            ol1(f"💀 [Main] Force stopping thread: {item_name} (ID: {item_id})")
+            ol1(f"💀 [Main] Force stopping thread: {item_name} (ID: {item_id})", monitor_item)
             
             # Set stop flag cho thread đó
             stop_flags[item_id] = True
@@ -1033,7 +1136,8 @@ def main_manager_loop():
             
             # Stop threads for disabled items với force stop
             for item_id in items_to_stop:
-                force_stop_monitor_thread(item_id)
+                monitor_it = get_monitor_item_by_id(item_id)  # Just to log if item not found
+                force_stop_monitor_thread(item)
             
             # Wait 5 seconds or until shutdown
             if shutdown_event.wait(timeout=5):

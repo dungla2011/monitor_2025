@@ -19,6 +19,8 @@ class class_send_alert_of_thread:
         self.thread_telegram_last_sent_alert = 0  # timestamp lần cuối gửi alert
         self.thread_count_consecutive_error = 0   # số lỗi liên tiếp
         self.thread_last_alert_time = 0          # timestamp alert cuối cùng
+        self.thread_webhook_error_sent = False   # đã gửi webhook error chưa
+        self.thread_webhook_recovery_sent = False # đã gửi webhook recovery chưa
         self._lock = threading.Lock()            # Thread safety
     
     def can_send_telegram_alert(self, throttle_seconds=30):
@@ -71,6 +73,44 @@ class class_send_alert_of_thread:
         with self._lock:
             current_time = time.time()
             return current_time - self.thread_last_alert_time >= (interval_minutes * 60)
+    
+    def should_send_webhook_error(self):
+        """
+        Kiểm tra có nên gửi webhook error không (chỉ gửi lần đầu lỗi)
+        """
+        with self._lock:
+            return not self.thread_webhook_error_sent
+    
+    def mark_webhook_error_sent(self):
+        """
+        Đánh dấu đã gửi webhook error
+        """
+        with self._lock:
+            self.thread_webhook_error_sent = True
+            self.thread_webhook_recovery_sent = False  # Reset recovery flag
+    
+    def should_send_webhook_recovery(self):
+        """
+        Kiểm tra có nên gửi webhook recovery không (chỉ gửi lần đầu recovery)
+        """
+        with self._lock:
+            return self.thread_webhook_error_sent and not self.thread_webhook_recovery_sent
+    
+    def mark_webhook_recovery_sent(self):
+        """
+        Đánh dấu đã gửi webhook recovery
+        """
+        with self._lock:
+            self.thread_webhook_recovery_sent = True
+            self.thread_webhook_error_sent = False  # Reset error flag
+    
+    def reset_webhook_flags(self):
+        """
+        Reset tất cả webhook flags (dùng khi start thread)
+        """
+        with self._lock:
+            self.thread_webhook_error_sent = False
+            self.thread_webhook_recovery_sent = False
 
 
 def ol1(msg, monitorItem=None):
