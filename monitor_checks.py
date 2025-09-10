@@ -63,13 +63,13 @@ def ping_icmp(host, timeout=5):
         response_time = (end_time - start_time) * 1000  # Convert to milliseconds
         
         if result.returncode == 0:
-            return True, response_time, "Ping ok"
+            return True, response_time, f"Ping ok {host}"
         else:
             stderr_output = result.stderr.strip() if result.stderr else "No error details"
             stdout_output = result.stdout.strip() if result.stdout else ""
             
             # Log chi tiết để debug
-            ol1(f" Ping failed:")
+            ol1(f" Ping failed: {host}")
 
             return False, None, f"Ping failed (code {result.returncode}): {stderr_output}"
             
@@ -105,11 +105,11 @@ def check_ssl_certificate(host, port=443, timeout=10):
                 cert = ssock.getpeercert()
                 
                 if not cert:
-                    return False, None, None, "No SSL certificate found"
+                    return False, None, None, f"No SSL certificate found {host}:{port}"
                 
                 # Parse ngày hết hạn
                 not_after = cert['notAfter']
-                ol1(f"📜 SSL Certificate raw date: {not_after}")
+                # ol1(f"📜 SSL Certificate raw date: {not_after}")
                 
                 # Thử các format khác nhau
                 date_formats = [
@@ -124,13 +124,13 @@ def check_ssl_certificate(host, port=443, timeout=10):
                 for date_format in date_formats:
                     try:
                         expiry_date = datetime.strptime(not_after, date_format)
-                        ol1(f"SSL date parsed with format: {date_format}")
+                        # ol1(f"SSL date parsed with format: {date_format}")
                         break
                     except ValueError:
                         continue
                 
                 if not expiry_date:
-                    return False, None, None, f"Cannot parse SSL certificate date: {not_after}"
+                    return False, None, None, f"Cannot parse SSL certificate date: {not_after}, {host}:{port}"
                 
                 expiry_date = expiry_date.replace(tzinfo=timezone.utc)
                 
@@ -140,18 +140,18 @@ def check_ssl_certificate(host, port=443, timeout=10):
                 
                 expiry_str = expiry_date.strftime('%Y-%m-%d %H:%M:%S UTC')
                 
-                ol1(f"📜 SSL Certificate expires on: {expiry_str} ({days_until_expiry} days remaining)")
+                # ol1(f"📜 SSL Certificate expires on: {expiry_str} ({days_until_expiry} days remaining)")
                 
-                return True, days_until_expiry, expiry_str, f"SSL check successful (Response time: {response_time:.2f}ms)"
+                return True, days_until_expiry, expiry_str, f"SSL check successful {host}:{port}, (Response time: {response_time:.2f}ms)"
                 
     except ssl.SSLError as e:
-        return False, None, None, f"SSL Error: {str(e)}"
+        return False, None, None, f"{host}:{port} SSL Error: {str(e)}"
     except socket.timeout:
-        return False, None, None, f"SSL timeout after {timeout} seconds"
+        return False, None, None, f"{host}:{port} SSL timeout after {timeout} seconds"
     except socket.gaierror as e:
-        return False, None, None, f"DNS resolution error: {str(e)}"
+        return False, None, None, f"{host}:{port} DNS resolution error: {str(e)}"
     except Exception as e:
-        return False, None, None, f"SSL check error: {str(e)}"
+        return False, None, None, f"{host}:{port} SSL check error: {str(e)}"
 
 def check_tcp_port(host, port, timeout=5):
     """
@@ -172,16 +172,16 @@ def check_tcp_port(host, port, timeout=5):
         sock.close()
         
         if result == 0:
-            return True, response_time, f"Port {port} is open"
+            return True, response_time, f"{host}:{port}  is open"
         else:
-            return False, response_time, f"Port {port} is closed or filtered"
+            return False, response_time, f"{host}:{port} is closed or filtered"
             
     except socket.timeout:
-        return False, None, f"TCP timeout after {timeout} seconds"
+        return False, None, f"{host}:{port} TCP timeout after {timeout} seconds"
     except socket.gaierror as e:
-        return False, None, f"DNS resolution error: {str(e)}"
+        return False, None, f"{host}:{port} DNS resolution error: {str(e)}"
     except Exception as e:
-        return False, None, f"TCP check error: {str(e)}"
+        return False, None, f"{host}:{port} TCP check error: {str(e)}"
 
 def ping_web(url, timeout=10):
     """
@@ -374,7 +374,7 @@ def check_open_port_tcp_then_error(monitor_item, attempt=1, max_attempts=3):
             'details': {'host': None, 'port': None, 'method': 'TCP Port Check (Error if Open)', 'attempt': attempt}
         }
     
-    ol1(f"🔍 TCP Port Check (Error if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item.id)
+    ol1(f"🔍 TCP Port Check (Error if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item)
     
     is_open, response_time, message = check_tcp_port(host, port)
     
@@ -394,18 +394,18 @@ def check_open_port_tcp_then_error(monitor_item, attempt=1, max_attempts=3):
     }
     
     if not is_open:  # Port closed = success
-        ol1(f"✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}", monitor_item.id)
+        ol1(f"✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}", monitor_item)
         return result
     else:  # Port open = error
-        ol1(f"❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}", monitor_item.id)
+        ol1(f"❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}", monitor_item)
         
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...", monitor_item.id)
+            ol1(f"⏳ Waiting 3s...", monitor_item)
             time.sleep(3)
             return check_open_port_tcp_then_error(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 Port still open after {max_attempts} attempts", monitor_item.id)
+            ol1(f"💥 Port still open after {max_attempts} attempts", monitor_item)
             return result
 
 def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
@@ -465,7 +465,7 @@ def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
             'details': {'host': host, 'port': port, 'method': 'SSL Certificate Check', 'attempt': attempt}
         }
     
-    ol1(f"🔒 SSL Certificate Check - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item.id)
+    ol1(f"🔒 SSL Certificate Check - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item)
     
     is_valid, days_until_expiry, expiry_date, message = check_ssl_certificate(host, port)
     
@@ -483,15 +483,15 @@ def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
             }
         }
         
-        ol1(f"❌ Attempt {attempt}: {message}", monitor_item.id)
+        ol1(f"❌ Attempt {attempt}: {message}", monitor_item)
         
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...", monitor_item.id)
+            ol1(f"⏳ Waiting 3s...", monitor_item)
             time.sleep(3)
             return check_ssl_expired_check(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 SSL check failed after {max_attempts} attempts", monitor_item.id)
+            ol1(f"💥 SSL check failed after {max_attempts} attempts", monitor_item)
             return result
     
     # SSL certificate valid, kiểm tra ngày hết hạn
@@ -515,21 +515,21 @@ def check_ssl_expired_check(monitor_item, attempt=1, max_attempts=3):
     if days_until_expiry > WARNING_DAYS:
         # SSL certificate còn hạn lâu
         result['message'] = f"✅ SSL valid for {days_until_expiry} days (expires: {expiry_date})"
-        ol1(f"✅ {result['message']}", monitor_item.id)
+        ol1(f"✅ {result['message']}", monitor_item)
         return result
     elif days_until_expiry > 0:
         # SSL sắp hết hạn (1-7 ngày)
         result['success'] = False
         result['message'] = f"⚠️ SSL expires in {days_until_expiry} days - Sắp hết hạn! (expires: {expiry_date})"
         result['details']['error_type'] = 'ssl_expiring_soon'
-        ol1(f"⚠️ {result['message']}", monitor_item.id)
+        ol1(f"⚠️ {result['message']}", monitor_item)
         return result
     else:
         # SSL đã hết hạn
         result['success'] = False
         result['message'] = f"❌ SSL certificate expired {abs(days_until_expiry)} days ago! (expired: {expiry_date})"
         result['details']['error_type'] = 'ssl_expired'
-        ol1(f"❌ {result['message']}", monitor_item.id)
+        ol1(f"❌ {result['message']}", monitor_item)
         return result
 
 def check_open_port_tcp_then_valid(monitor_item, attempt=1, max_attempts=3):
@@ -574,7 +574,7 @@ def check_open_port_tcp_then_valid(monitor_item, attempt=1, max_attempts=3):
             'message': f"❌ Cannot parse port from '{url_check}'. Expected 'host:port' format",
             'details': {'host': None, 'port': None, 'method': 'TCP Port Check (Valid if Open)', 'attempt': attempt}
         }
-    ol1(f"🔍 TCP Port Check (Valid if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item.id)
+    ol1(f"🔍 TCP Port Check (Valid if Open) - {host}:{port} (attempt {attempt}/{max_attempts})...", monitor_item)
     is_open, response_time, message = check_tcp_port(host, port)
     
     # Logic bình thường: SUCCESS nếu port OPEN, ERROR nếu port CLOSED
@@ -593,18 +593,18 @@ def check_open_port_tcp_then_valid(monitor_item, attempt=1, max_attempts=3):
     }
     
     if is_open:  # Port open = success
-        ol1(f"✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}", monitor_item.id)
+        ol1(f"✅ {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ✅ {result['message']}", monitor_item)
         return result
     else:  # Port closed = error
-        ol1(f"❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}", monitor_item.id)
+        ol1(f"❌ Attempt {attempt}: {result['message']} (Time: {response_time:.2f}ms)" if response_time else f"   ❌ Attempt {attempt}: {result['message']}", monitor_item)
 
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...", monitor_item.id)
+            ol1(f"⏳ Waiting 3s...", monitor_item)
             time.sleep(3)
             return check_open_port_tcp_then_valid(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 Port still closed after {max_attempts} attempts", monitor_item.id)
+            ol1(f"💥 Port still closed after {max_attempts} attempts", monitor_item)
             return result
 
 def check_ping_web(monitor_item, attempt=1, max_attempts=3):
@@ -619,7 +619,7 @@ def check_ping_web(monitor_item, attempt=1, max_attempts=3):
     Returns:
         dict: Kết quả kiểm tra
     """
-    ol1(f"🌐 HTTP/HTTPS check (attempt {attempt}/{max_attempts})...", monitor_item.id)
+    ol1(f"🌐 HTTP/HTTPS check (attempt {attempt}/{max_attempts})...", monitor_item)
 
     success, status_code, response_time, message = ping_web(monitor_item.url_check)
     
@@ -635,18 +635,18 @@ def check_ping_web(monitor_item, attempt=1, max_attempts=3):
     }
     
     if success:
-        ol1(f"✅ {message} (Status: {status_code}, Time: {response_time:.2f}ms)", monitor_item.id)
+        ol1(f"✅ {message} (Status: {status_code}, Time: {response_time:.2f}ms)", monitor_item)
         return result
     else:
-        ol1(f"❌ Attempt {attempt}: {message}", monitor_item.id)
+        ol1(f"❌ Attempt {attempt}: {message}", monitor_item)
 
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...", monitor_item.id)
+            ol1(f"⏳ Waiting 3s...", monitor_item)
             time.sleep(3)
             return check_ping_web(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 Failed after {max_attempts} attempts", monitor_item.id)
+            ol1(f"💥 Failed after {max_attempts} attempts", monitor_item)
             return result
 
 def check_ping_icmp(monitor_item, attempt=1, max_attempts=3):
@@ -671,7 +671,7 @@ def check_ping_icmp(monitor_item, attempt=1, max_attempts=3):
             'details': {'host': None, 'method': 'ICMP ping', 'attempt': attempt}
         }
     
-    ol1(f"- Ping {host} (try {attempt}/{max_attempts}) ", monitor_item.id)
+    ol1(f"- Ping {host} (try {attempt}/{max_attempts}) ", monitor_item)
     
     success, response_time, message = ping_icmp(host)
     
@@ -687,18 +687,18 @@ def check_ping_icmp(monitor_item, attempt=1, max_attempts=3):
     }
     
     if success:
-        ol1(f"✅ {message} (Time: {response_time:.2f}ms)", monitor_item.id)
+        ol1(f"✅ {message} (Time: {response_time:.2f}ms)", monitor_item)
         return result
     else:
-        ol1(f" Attempt {attempt}: {message}", monitor_item.id)
+        ol1(f" Attempt {attempt}: {message}", monitor_item)
         
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f" Waiting 3s before retry...", monitor_item.id)
+            ol1(f" Waiting 3s before retry...", monitor_item)
             time.sleep(3)
             return check_ping_icmp(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f" Failed after {max_attempts} attempts", monitor_item.id)
+            ol1(f" Failed after {max_attempts} attempts", monitor_item)
             return result
 
 def check_web_content(monitor_item, attempt=1, max_attempts=3):
@@ -713,7 +713,7 @@ def check_web_content(monitor_item, attempt=1, max_attempts=3):
     Returns:
         dict: Kết quả kiểm tra
     """
-    ol1(f"📄 Web content check (attempt {attempt}/{max_attempts})...", monitor_item.id)
+    ol1(f"📄 Web content check (attempt {attempt}/{max_attempts})...", monitor_item)
     
     # Fetch web content
     success, status_code, response_time, content, message = fetch_web_content(monitor_item.url_check)
@@ -731,24 +731,24 @@ def check_web_content(monitor_item, attempt=1, max_attempts=3):
     }
     
     if not success:
-        ol1(f"❌ Attempt {attempt}: {message}", monitor_item.id)
+        ol1(f"❌ Attempt {attempt}: {message}", monitor_item)
         
         # Nếu chưa thành công và còn lần thử
         if attempt < max_attempts:
-            ol1(f"⏳ Waiting 3s...", monitor_item.id)
+            ol1(f"⏳ Waiting 3s...", monitor_item)
             time.sleep(3)
             return check_web_content(monitor_item, attempt + 1, max_attempts)
         else:
-            ol1(f"💥 Failed after {max_attempts} attempts", monitor_item.id)
+            ol1(f"💥 Failed after {max_attempts} attempts", monitor_item)
             return result
     
     # Content đã fetch thành công, bây giờ kiểm tra nội dung
-    ol1(f"📄 Content fetched successfully ({len(content)} chars)", monitor_item.id)
+    ol1(f"📄 Content fetched successfully ({len(content)} chars)", monitor_item)
 
     # Kiểm tra result_error trước (higher priority)
     if monitor_item.result_error and monitor_item.result_error.strip():
         error_keywords = [keyword.strip() for keyword in monitor_item.result_error.split(',') if keyword.strip()]
-        ol1(f"🔍 Checking for error keywords: {error_keywords}", monitor_item.id)
+        ol1(f"🔍 Checking for error keywords: {error_keywords}", monitor_item)
 
         for keyword in error_keywords:
             if keyword in content:
@@ -776,15 +776,15 @@ def check_web_content(monitor_item, attempt=1, max_attempts=3):
             result['message'] = f"❌ Missing required keywords: {', '.join(missing_keywords)}"
             result['details']['missing_keywords'] = missing_keywords
             result['details']['check_type'] = 'missing_required'
-            ol1(f"❌ Missing required keywords: {missing_keywords}", monitor_item.id)
+            ol1(f"❌ Missing required keywords: {missing_keywords}", monitor_item)
             return result
 
-        ol1(f"✅ All required keywords found", monitor_item.id)
+        ol1(f"✅ All required keywords found", monitor_item)
 
     # Nếu không có lỗi và tất cả keywords required đều có
     result['success'] = True
     result['message'] = f"✅ Content validation passed (Status: {status_code})"
     result['details']['check_type'] = 'content_validation'
-    ol1(f"✅ Content validation passed", monitor_item.id)
+    ol1(f"✅ Content validation passed", monitor_item)
     
     return result

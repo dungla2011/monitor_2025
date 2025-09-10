@@ -481,11 +481,11 @@ def check_service(monitor_item):
     # Đặt giá trị mặc định cho check_interval_seconds nếu None hoặc 0
     check_interval = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
     
-    ol1(f"\nChecking: (ID: {monitor_item.id})", monitor_item.id)
-    ol1(f"Type: {monitor_item.type}", monitor_item.id)
-    ol1(f"URL: {monitor_item.url_check}", monitor_item.id)
-    ol1(f"Interval: {check_interval}s", monitor_item.id)
-    ol1(f"Retry: 3 attempts, 3s interval", monitor_item.id)
+    ol1(f"\nChecking: (ID: {monitor_item.id})", monitor_item)
+    ol1(f"Type: {monitor_item.type}", monitor_item)
+    ol1(f"URL: {monitor_item.url_check}", monitor_item)
+    ol1(f"Interval: {check_interval}s", monitor_item)
+    ol1(f"Retry: 3 attempts, 3s interval", monitor_item)
 
     base_result = {
         'monitor_item_id': monitor_item.id,

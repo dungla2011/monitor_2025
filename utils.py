@@ -7,32 +7,50 @@ import os
 from datetime import datetime
 
 
-def ol1(msg, id=None):
+def ol1(msg, monitorItem=None):
     """
-    Output Log function - Ghi log ra console và file
+    Output Log function - Ghi log ra console và file (Thread-safe)
     
     Args:
         msg (str): Thông điệp cần log
+        id (int, optional): Thread/Monitor ID để tách log file
     """
     print(msg)
 
-# Tạo folder logs nếu chưa có
+    # Tạo folder logs nếu chưa có
     if not os.path.exists('logs'):
         os.makedirs('logs')
 
-    # Ghi log ra file với utf-8 encoding:
+    # Ghi log ra file với utf-8 encoding - Thread-safe approach:
     try:
-        if id is not None:
-            log_file = os.getenv('LOG_FILE', f'logs/log_{id}.txt')
+        log_files = []
+        
+        padIdItem = None
+
+        if monitorItem is not None:
+            # Log file theo monitor ID
+            log_files.append(os.getenv('LOG_FILE', f'logs/log_{monitorItem.id}.txt'))
+
+            padIdItem = f"ID:{monitorItem.id} "
+            # Nếu có user_id thì ghi thêm vào file log theo user
+            if hasattr(monitorItem, 'user_id') and monitorItem.user_id is not None:
+                log_files.append(f'logs/log_user_{monitorItem.user_id}.txt')
         else:
-            log_file = os.getenv('LOG_FILE', f'logs/log_main.txt')
-        with open(log_file, "a", encoding="utf-8") as f:
-            # Format thời gian chỉ đến giây, bỏ millisecond
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            f.write(f"{timestamp}#{msg}\n")
+            # Main log file
+            log_files.append(os.getenv('LOG_FILE', 'logs/log_main.txt'))
+
+
+        
+        # Ghi vào tất cả các log files
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        log_line = f"{timestamp}# {padIdItem} - {msg}\n"
+        
+        for log_file in log_files:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(log_line)
     except Exception as e:
-        # Tránh lỗi khi file không thể write
-        # Không print error để tránh loop
+        # Tránh lỗi khi file không thể write (file busy, permission, etc.)
+        # Không print error để tránh recursive loop
         pass
 
 
