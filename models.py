@@ -83,7 +83,7 @@ class MonitorSettings(Base):
     deleted_at = Column(DateTime, nullable=True)
     log = Column(Text, nullable=True)
     alert_time_ranges = Column(String(255), nullable=True)  # Format: "05:30-23:00" hoặc nhiều range
-    timezone = Column(String(64), default='Asia/Ho_Chi_Minh')
+    timezone = Column(Integer, default=7)  # GMT offset: 7 = Asia/Ho_Chi_Minh, 0 = UTC, etc.
     global_stop_alert_to = Column(DateTime, nullable=True)  # Dừng alert đến thời gian này
     
     def __repr__(self):
@@ -270,7 +270,40 @@ def is_alert_time_allowed(user_id):
         
         # Kiểm tra alert_time_ranges
         if settings.alert_time_ranges:
-            timezone_str = settings.timezone or 'Asia/Ho_Chi_Minh'
+            # Xử lý timezone - có thể là số (GMT offset) hoặc string
+            timezone_value = settings.timezone
+            if timezone_value is None:
+                timezone_value = 7  # Default GMT+7
+            
+            # Convert timezone number to timezone string
+            if isinstance(timezone_value, (int, float)):
+                timezone_map = {
+                    7: 'Asia/Ho_Chi_Minh',   # GMT+7 Vietnam, Laos, Cambodia
+                    0: 'UTC',                # GMT+0 UTC
+                    8: 'Asia/Shanghai',      # GMT+8 China, Singapore, Malaysia, Philippines
+                    9: 'Asia/Tokyo',         # GMT+9 Japan, South Korea
+                    5.5: 'Asia/Kolkata',     # GMT+5:30 India
+                    6: 'Asia/Dhaka',         # GMT+6 Bangladesh
+                    -5: 'America/New_York',  # GMT-5 EST (US East Coast)
+                    -8: 'America/Los_Angeles', # GMT-8 PST (US West Coast)
+                    -6: 'America/Chicago',   # GMT-6 CST (US Central)
+                    1: 'Europe/Berlin',      # GMT+1 Central Europe
+                    2: 'Europe/Helsinki',    # GMT+2 Eastern Europe
+                    3: 'Europe/Moscow',      # GMT+3 Moscow
+                    4: 'Asia/Dubai',         # GMT+4 UAE
+                    5: 'Asia/Karachi',       # GMT+5 Pakistan
+                    10: 'Australia/Sydney',  # GMT+10 Australia East
+                    # Thêm các timezone khác nếu cần
+                }
+                timezone_str = timezone_map.get(int(timezone_value), 'Asia/Ho_Chi_Minh')
+                print(f"🌍 User {user_id} timezone: GMT+{timezone_value} -> {timezone_str}")
+            elif isinstance(timezone_value, str):
+                timezone_str = timezone_value
+                print(f"🌍 User {user_id} timezone: {timezone_str}")
+            else:
+                timezone_str = 'Asia/Ho_Chi_Minh'
+                print(f"⚠️ Unknown timezone format for user {user_id}: {timezone_value}, using default")
+            
             try:
                 tz = pytz.timezone(timezone_str)
                 now_local = datetime.now(tz)

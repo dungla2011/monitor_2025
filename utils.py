@@ -5,6 +5,72 @@ Các hàm tiện ích dùng chung cho toàn bộ project
 
 import os
 from datetime import datetime
+import threading
+import time
+
+
+class class_send_alert_of_thread:
+    """
+    Class quản lý alert cho mỗi monitor thread
+    """
+    
+    def __init__(self, monitor_id):
+        self.id = monitor_id
+        self.thread_telegram_last_sent_alert = 0  # timestamp lần cuối gửi alert
+        self.thread_count_consecutive_error = 0   # số lỗi liên tiếp
+        self.thread_last_alert_time = 0          # timestamp alert cuối cùng
+        self._lock = threading.Lock()            # Thread safety
+    
+    def can_send_telegram_alert(self, throttle_seconds=30):
+        """
+        Kiểm tra có thể gửi telegram alert không (dựa trên throttle time)
+        """
+        with self._lock:
+            current_time = time.time()
+            return current_time - self.thread_telegram_last_sent_alert >= throttle_seconds
+    
+    def mark_telegram_sent(self):
+        """
+        Đánh dấu đã gửi telegram alert
+        """
+        with self._lock:
+            self.thread_telegram_last_sent_alert = time.time()
+    
+    def increment_consecutive_error(self):
+        """
+        Tăng số lỗi liên tiếp
+        """
+        with self._lock:
+            self.thread_count_consecutive_error += 1
+    
+    def reset_consecutive_error(self):
+        """
+        Reset số lỗi liên tiếp về 0
+        """
+        with self._lock:
+            self.thread_count_consecutive_error = 0
+    
+    def update_last_alert_time(self):
+        """
+        Cập nhật thời gian alert cuối cùng
+        """
+        with self._lock:
+            self.thread_last_alert_time = time.time()
+    
+    def get_consecutive_error_count(self):
+        """
+        Lấy số lỗi liên tiếp hiện tại
+        """
+        with self._lock:
+            return self.thread_count_consecutive_error
+    
+    def should_send_extended_alert(self, interval_minutes=5):
+        """
+        Kiểm tra có nên gửi extended alert không (sau khoảng thời gian dài)
+        """
+        with self._lock:
+            current_time = time.time()
+            return current_time - self.thread_last_alert_time >= (interval_minutes * 60)
 
 
 def ol1(msg, monitorItem=None):

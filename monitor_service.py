@@ -79,7 +79,7 @@ from db_connection import engine
 from models import MonitorItem, get_telegram_config_for_monitor_item, is_alert_time_allowed
 from telegram_helper import send_telegram_alert, send_telegram_recovery
 from single_instance_api import SingleInstanceManager, MonitorAPI, check_instance_and_get_status
-from utils import ol1, format_response_time, safe_get_env_int, safe_get_env_bool, validate_url, generate_thread_name, format_counter_display
+from utils import ol1, class_send_alert_of_thread, class_send_alert_of_thread, format_response_time, safe_get_env_int, safe_get_env_bool, validate_url, generate_thread_name, format_counter_display
 
 # Single Instance Manager - MUST be initialized after loading environment
 instance_manager = SingleInstanceManager()
@@ -91,14 +91,33 @@ shutdown_event = threading.Event()  # Event để signal shutdown
 stop_flags = {}  # Dictionary để signal stop cho từng thread riêng biệt
 
 # Telegram notification throttling
-telegram_last_sent = {}  # Dictionary để track thời gian gửi Telegram cuối cùng
-TELEGRAM_THROTTLE_SECONDS = 30  # 30 giây giữa các notification giống nhau
+# Alert management - Dictionary chứa alert object cho mỗi thread
+thread_alert_managers = {}  # {thread_id: class_send_alert_of_thread_instance}
+thread_alert_lock = threading.Lock()  # Lock để thread-safe khi truy cập alert managers
 
-# Error tracking cho từng thread
-thread_consecutive_errors = {}  # Dictionary để track số lần lỗi liên tiếp của từng thread
-CONSECUTIVE_ERROR_THRESHOLD = 10  # Số lần lỗi liên tiếp trước khi giãn alert
+# Throttle settings
+TELEGRAM_THROTTLE_SECONDS = 30  # Giây throttle cho Telegram
+CONSECUTIVE_ERROR_THRESHOLD = 10  # Ngưỡng lỗi liên tiếp để giãn alert
 EXTENDED_ALERT_INTERVAL_MINUTES = 5  # Số phút giãn alert sau khi quá ngưỡng (0 = không giãn)
-thread_last_alert_time = {}  # Dictionary để track thời gian gửi alert cuối cùng của từng thread
+
+
+def get_alert_manager(thread_id):
+    """
+    Lấy alert manager cho thread ID, tạo mới nếu chưa có
+    """
+    with thread_alert_lock:
+        if thread_id not in thread_alert_managers:
+            thread_alert_managers[thread_id] = class_send_alert_of_thread(thread_id)
+        return thread_alert_managers[thread_id]
+
+
+def cleanup_alert_manager(thread_id):
+    """
+    Cleanup alert manager khi thread kết thúc
+    """
+    with thread_alert_lock:
+        if thread_id in thread_alert_managers:
+            del thread_alert_managers[thread_id]
 
 # Create session factory
 SessionLocal = sessionmaker(bind=engine)
@@ -290,8 +309,8 @@ def safe_update_monitor_item_worker_thread(monitor_item):
     try:
         return execute_db_operation_worker_thread(db_operation, f"Update monitor item {monitor_item.id} (worker thread)")
     except Exception as e:
-        ol1(f"💥 Worker thread failed to update monitor item {monitor_item.id}: {e}")
-        ol1(f"🔥 This worker thread will die now!")
+        ol1(f"💥 Worker thread failed to update monitor item {monitor_item.id}: {e}", monitor_item)
+        ol1(f"🔥 This worker thread will die now!", monitor_item)
         raise e  # Let worker thread die
 
 def start_api_server():
@@ -306,8 +325,7 @@ def start_api_server():
         # Pass references directly để tránh circular import
         api.set_monitor_refs(
             running_threads=running_threads,
-            thread_consecutive_errors=thread_consecutive_errors,
-            thread_last_alert_time=thread_last_alert_time,
+            thread_alert_managers=thread_alert_managers,
             get_all_monitor_items=get_all_monitor_items,
             shutdown_event=shutdown_event
         )
@@ -347,12 +365,13 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
         
         thread_id = monitor_item.id
         current_time = time.time()
+        alert_manager = get_alert_manager(thread_id)
         
         # Xử lý logic lỗi liên tiếp
         if is_error:
             # Tăng counter lỗi liên tiếp
-            thread_consecutive_errors[thread_id] = thread_consecutive_errors.get(thread_id, 0) + 1
-            consecutive_errors = thread_consecutive_errors[thread_id]
+            alert_manager.increment_consecutive_error()
+            consecutive_errors = alert_manager.get_consecutive_error_count()
             
             ol1(f"📊 [Thread {thread_id}] Consecutive errors: {consecutive_errors}")
             
@@ -372,34 +391,31 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
             
             if should_throttle_extended:
                 # Kiểm tra thời gian gửi alert cuối cùng
-                last_alert_time = thread_last_alert_time.get(thread_id, 0)
-                time_since_last_alert = current_time - last_alert_time
-                extended_throttle_seconds = EXTENDED_ALERT_INTERVAL_MINUTES * 60
-                
-                if time_since_last_alert < extended_throttle_seconds:
-                    remaining_minutes = (extended_throttle_seconds - time_since_last_alert) / 60
-                    ol1(f"🔕 [Thread {thread_id}] Extended alert throttle active ({remaining_minutes:.1f}m remaining)")
+                if not alert_manager.should_send_extended_alert(EXTENDED_ALERT_INTERVAL_MINUTES):
+                    time_since_last_alert = current_time - alert_manager.thread_last_alert_time
+                    remaining_minutes = (EXTENDED_ALERT_INTERVAL_MINUTES * 60 - time_since_last_alert) / 60
+                    ol1(f"🔕 [Thread {thread_id}] Extended alert throttle active ({remaining_minutes:.1f}m remaining)", monitor_item)
                     return
                 
-                ol1(f"⚠️ [Thread {thread_id}] Throttled alert (every {EXTENDED_ALERT_INTERVAL_MINUTES}m, {CONSECUTIVE_ERROR_THRESHOLD} consecutive errs)")
+                ol1(f"⚠️ [Thread {thread_id}] Throttled alert (every {EXTENDED_ALERT_INTERVAL_MINUTES}m, {CONSECUTIVE_ERROR_THRESHOLD} consecutive errs)", monitor_item)
             
         else:
             # Phục hồi - reset counter lỗi liên tiếp
-            if thread_id in thread_consecutive_errors:
-                consecutive_errors = thread_consecutive_errors[thread_id]
-                thread_consecutive_errors[thread_id] = 0
-                ol1(f"✅ [Thread {thread_id}] Service recovered! Reset consecutive error count (was: {consecutive_errors})")
+            consecutive_errors = alert_manager.get_consecutive_error_count()
+            if consecutive_errors > 0:
+                alert_manager.reset_consecutive_error()
+                ol1(f"✅ [Thread {thread_id}] Service recovered! Reset consecutive error count (was: {consecutive_errors})", monitor_item)
         
         # Kiểm tra user alert time settings trước khi gửi
         user_id = monitor_item.user_id if monitor_item.user_id else 0
         is_allowed, reason = is_alert_time_allowed(user_id)
         
         if not is_allowed:
-            ol1(f"🔕 [Thread {thread_id}] Alert blocked for user {user_id}: {reason}")
+            ol1(f"🔕 [Thread {thread_id}] Alert blocked for user {user_id}: {reason}", monitor_item)
             return
         else:
-            ol1(f"✅ [Thread {thread_id}] Alert allowed for user {user_id}: {reason}")
-        
+            ol1(f"✅ [Thread {thread_id}] Alert allowed for user {user_id}: {reason}", monitor_item)
+
         # Lấy config Telegram
         telegram_config = get_telegram_config_for_monitor_item(monitor_item.id)
         
@@ -409,31 +425,29 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
             chat_id = os.getenv('TELEGRAM_CHAT_ID')
             
             if not bot_token or not chat_id:
-                ol1(f"⚠️ [Thread {thread_id}] No Telegram config found (database or .env)")
+                ol1(f"⚠️ [Thread {thread_id}] No Telegram config found (database or .env)", monitor_item)
                 return
         else:
             bot_token = telegram_config['bot_token']
             chat_id = telegram_config['chat_id']
-            ol1(f"📱 [Thread {thread_id}] Using database Telegram config")
+            ol1(f"📱 [Thread {thread_id}] Using database Telegram config", monitor_item)
         
         # Basic throttling (30 giây giữa các notification giống nhau)
-        notification_key = f"{monitor_item.name}_{thread_id}_{is_error}"
+        alert_manager = get_alert_manager(thread_id)
         
-        if notification_key in telegram_last_sent:
-            time_since_last = current_time - telegram_last_sent[notification_key]
-            if time_since_last < TELEGRAM_THROTTLE_SECONDS:
-                remaining = TELEGRAM_THROTTLE_SECONDS - time_since_last
-                ol1(f"🔇 [Thread {thread_id}] Basic throttle active ({remaining:.0f}s remaining)")
-                return
+        if not alert_manager.can_send_telegram_alert(TELEGRAM_THROTTLE_SECONDS):
+            remaining = TELEGRAM_THROTTLE_SECONDS - (current_time - alert_manager.thread_telegram_last_sent_alert)
+            ol1(f"🔇 [Thread {thread_id}] Basic throttle active {TELEGRAM_THROTTLE_SECONDS} ({remaining:.0f}s remaining)", monitor_item)
+            return
         
         # Cập nhật thời gian gửi
-        telegram_last_sent[notification_key] = current_time
+        alert_manager.mark_telegram_sent()
         if is_error:
-            thread_last_alert_time[thread_id] = current_time
+            alert_manager.update_last_alert_time()
         
         # Gửi notification
         if is_error:
-            consecutive_errors = thread_consecutive_errors.get(thread_id, 0)
+            consecutive_errors = alert_manager.get_consecutive_error_count()
             enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
             
             admin_domain = os.getenv('ADMIN_DOMAIN', 'monitor.mytree.vn')
@@ -446,9 +460,9 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
                 error_message=enhanced_error_message
             )
             if result['success']:
-                ol1(f"📱 [Thread {thread_id}] Telegram alert sent successfully")
+                ol1(f"📱 [Thread {thread_id}] Telegram alert sent successfully", monitor_item)
             else:
-                ol1(f"❌ [Thread {thread_id}] Telegram alert failed: {result['message']}")
+                ol1(f"❌ [Thread {thread_id}] Telegram alert failed: {result['message']}", monitor_item)
         else:
             admin_domain = os.getenv('ADMIN_DOMAIN', 'monitor.mytree.vn')
             result = send_telegram_recovery(
@@ -460,12 +474,12 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
                 response_time=response_time or 0
             )
             if result['success']:
-                ol1(f"📱 [Thread {thread_id}] Telegram recovery notification sent successfully")
+                ol1(f"📱 [Thread {thread_id}] Telegram recovery notification sent successfully",monitor_item)
             else:
-                ol1(f"❌ [Thread {thread_id}] Telegram recovery notification failed: {result['message']}")
+                ol1(f"❌ [Thread {thread_id}] Telegram recovery notification failed: {result['message']}", monitor_item)
                 
     except Exception as e:
-        ol1(f"❌ [Thread {monitor_item.id}] Telegram notification error: {e}")
+        ol1(f"❌ [Thread {monitor_item.id}] Telegram notification error: {e}", monitor_item)
 
 
 def check_service(monitor_item):
@@ -644,9 +658,8 @@ def monitor_service_thread(monitor_item):
     check_count = 0
     
     # Reset counter lỗi liên tiếp khi start thread
-    thread_consecutive_errors[monitor_item.id] = 0
-    if monitor_item.id in thread_last_alert_time:
-        del thread_last_alert_time[monitor_item.id]
+    alert_manager = get_alert_manager(monitor_item.id)
+    alert_manager.reset_consecutive_error()
     
     ol1(f"🚀[Thread {monitor_item.id}] Starting monitoring: {monitor_item.name}")
     ol1(f"[Thread {monitor_item.id}] Interval: {check_interval} seconds")
@@ -762,11 +775,8 @@ def monitor_service_thread(monitor_item):
                 del running_threads[monitor_item.id]
             if monitor_item.id in stop_flags:
                 del stop_flags[monitor_item.id]
-            # Cleanup error tracking khi thread dừng
-            if monitor_item.id in thread_consecutive_errors:
-                del thread_consecutive_errors[monitor_item.id]
-            if monitor_item.id in thread_last_alert_time:
-                del thread_last_alert_time[monitor_item.id]
+            # Cleanup alert manager khi thread dừng
+            cleanup_alert_manager(monitor_item.id)
             ol1(f"🧹 [Thread {monitor_item.id}] Thread cleanup completed for {monitor_item.name}")
 
 def show_thread_status():

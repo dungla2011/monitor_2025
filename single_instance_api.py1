@@ -164,7 +164,8 @@ class MonitorAPI:
         
         # Không import ngay để tránh circular import
         self.running_threads = None
-        self.thread_alert_managers = None
+        self.thread_consecutive_errors = None
+        self.thread_last_alert_time = None
         self.get_all_monitor_items = None
         self.shutdown_event = None
         
@@ -301,11 +302,12 @@ class MonitorAPI:
         print(f"   Final result: {result}")
         return result
     
-    def set_monitor_refs(self, running_threads, thread_alert_managers, 
-                        get_all_monitor_items, shutdown_event):
+    def set_monitor_refs(self, running_threads, thread_consecutive_errors, 
+                        thread_last_alert_time, get_all_monitor_items, shutdown_event):
         """Set references to monitor_service objects directly"""
         self.running_threads = running_threads
-        self.thread_alert_managers = thread_alert_managers
+        self.thread_consecutive_errors = thread_consecutive_errors
+        self.thread_last_alert_time = thread_last_alert_time
         self.get_all_monitor_items = get_all_monitor_items
         self.shutdown_event = shutdown_event
         
@@ -322,12 +324,14 @@ class MonitorAPI:
                 warnings.simplefilter("ignore")
                 
                 from monitor_service import (
-                    running_threads, thread_alert_managers, 
-                    get_all_monitor_items, shutdown_event
+                    running_threads, thread_consecutive_errors, 
+                    thread_last_alert_time, get_all_monitor_items,
+                    shutdown_event
                 )
             
             self.running_threads = running_threads
-            self.thread_alert_managers = thread_alert_managers
+            self.thread_consecutive_errors = thread_consecutive_errors
+            self.thread_last_alert_time = thread_last_alert_time
             self.get_all_monitor_items = get_all_monitor_items
             self.shutdown_event = shutdown_event
             
@@ -335,7 +339,8 @@ class MonitorAPI:
             print(f"⚠️ Could not import monitor_service references: {e}")
             # Fallback values
             self.running_threads = {}
-            self.thread_alert_managers = {}
+            self.thread_consecutive_errors = {}
+            self.thread_last_alert_time = {}
             self.get_all_monitor_items = lambda: []
             self.shutdown_event = None
     
@@ -395,15 +400,10 @@ class MonitorAPI:
                         'running_threads': running_threads_count
                     },
                     'threads': list(self.running_threads.keys()),
-                    'alert_info': {
-                        str(thread_id): {
-                            'consecutive_errors': manager.get_consecutive_error_count(),
-                            'last_alert_time': datetime.fromtimestamp(manager.thread_last_alert_time).isoformat() 
-                                if manager.thread_last_alert_time else None,
-                            'last_telegram_sent': datetime.fromtimestamp(manager.thread_telegram_last_sent_alert).isoformat() 
-                                if manager.thread_telegram_last_sent_alert else None
-                        } 
-                        for thread_id, manager in self.thread_alert_managers.items()
+                    'consecutive_errors': dict(self.thread_consecutive_errors),
+                    'last_alert_times': {
+                        str(k): datetime.fromtimestamp(v).isoformat() if v else None 
+                        for k, v in self.thread_last_alert_time.items()
                     }
                 })
             except Exception as e:
@@ -436,7 +436,7 @@ class MonitorAPI:
                         'last_check_time': item.last_check_time.isoformat() if item.last_check_time else None,
                         'time_range_seconds': item.check_interval_seconds,
                         'user_id': item.user_id,
-                        'consecutive_errors': self.thread_alert_managers.get(thread_id, type('obj', (object,), {'get_consecutive_error_count': lambda: 0})).get_consecutive_error_count(),
+                        'consecutive_errors': self.thread_consecutive_errors.get(thread_id, 0),
                         'is_thread_running': thread_id in self.running_threads,
                         'stop_to': item.stopTo.isoformat() if item.stopTo else None,
                         'count_online': item.count_online or 0,
