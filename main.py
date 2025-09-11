@@ -54,5 +54,5 @@ def main():
     print("\n" + "="*80)
     print("✅ All tests completed!")
 
-if __name__ == "__main__":
+if __name__ == "__main__": 
     main()

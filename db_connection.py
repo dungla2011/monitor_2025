@@ -8,18 +8,44 @@ import pandas as pd
 # Load environment variables from .env file
 load_dotenv()
 
-# Database configuration from environment variables
-DB_HOST = os.getenv('DB_HOST')
-DB_PORT = os.getenv('DB_PORT')
-DB_USER = os.getenv('DB_USER')
-DB_PASSWORD = os.getenv('DB_PASSWORD')
-DB_NAME = os.getenv('DB_NAME')
+def get_database_config():
+    """Get database configuration based on DB_TYPE"""
+    db_type = os.getenv('DB_TYPE', 'mysql').lower()
+    
+    if db_type == 'postgresql':
+        return {
+            'type': 'postgresql',
+            'host': os.getenv('POSTGRES_HOST', 'localhost'),
+            'port': os.getenv('POSTGRES_PORT', '5432'),
+            'user': os.getenv('POSTGRES_USER'),
+            'password': os.getenv('POSTGRES_PASSWORD'),
+            'name': os.getenv('POSTGRES_NAME')
+        }
+    else:  # Default to MySQL
+        return {
+            'type': 'mysql',
+            'host': os.getenv('MYSQL_HOST') or os.getenv('DB_HOST'),
+            'port': os.getenv('MYSQL_PORT') or os.getenv('DB_PORT'),
+            'user': os.getenv('MYSQL_USER') or os.getenv('DB_USER'),
+            'password': os.getenv('MYSQL_PASSWORD') or os.getenv('DB_PASSWORD'),
+            'name': os.getenv('MYSQL_NAME') or os.getenv('DB_NAME')
+        }
 
-# Encode password to handle special characters like @
-encoded_password = quote_plus(DB_PASSWORD) if DB_PASSWORD else ""
+def create_database_url(config):
+    """Create database URL based on configuration"""
+    # Encode password to handle special characters like @
+    encoded_password = quote_plus(config['password']) if config['password'] else ""
+    
+    if config['type'] == 'postgresql':
+        return f"postgresql+psycopg2://{config['user']}:{encoded_password}@{config['host']}:{config['port']}/{config['name']}"
+    else:  # MySQL
+        return f"mysql+pymysql://{config['user']}:{encoded_password}@{config['host']}:{config['port']}/{config['name']}"
 
-# Create database URL with encoded password
-DATABASE_URL = f"mysql+pymysql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# Get database configuration
+db_config = get_database_config()
+DATABASE_URL = create_database_url(db_config)
+
+print(f"🔗 Database: {db_config['type'].upper()} on {db_config['host']}:{db_config['port']}/{db_config['name']}")
 
 # Create SQLAlchemy engine
 # engine = create_engine(DATABASE_URL, echo=False)  # echo=False để tắt SQL queries logging
