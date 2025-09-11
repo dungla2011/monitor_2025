@@ -1,0 +1,83 @@
+{
+    // Environment name, supports custom names
+    "test": {
+        // Test environment
+        "type": "ftp", // (Required) Transfer type, supports ftp, sftp, ssh
+        "host": "0.0.0.0", // (Required) Server address
+        "port": 22, // (Optional) Port number. Default is 21 for ftp, 22 for sftp and ssh
+        "username": "username", // (Required) Login username
+        "password": "password", // Login password (choose one between this and private key path)
+        // "privateKeyPath": "/your_path/id_rsa", // (For sftp, ssh configuration) Private key path (choose one between this and login password). Note: It's best not to put the key in the code root directory
+        // "secretKeyPath": "/your_path/secret_key.txt", // Path to the encryption private key, used for encrypting usernames and passwords. Note: It is best not to place the key in the code directory.
+        "proxy": false, // Whether to use a proxy, default is false
+        "upload_on_save": false, // Submit code in real-time after saving. It's recommended for single developers. When upload_on_save is set to true, watch, submit_git_before_upload, compress, and deleteRemote are invalid. Default is false
+        "watch": false, // Monitor file changes in the upload directory. Default is true. If upload_on_save is true, this option is invalid. If the distPath directory is configured, only file changes under the distPath directory will be monitored
+        "submit_git_before_upload": true, // For team development. Commit local Git before uploading code to prevent overwriting remote code. Default is false
+        "submit_git_msg": "", // Configuration for the commit message of Git. Default is empty. When submit_git_before_upload is true and this field is not filled, a prompt box will pop up for manual input
+        // "build": "yarn build:test", // (Optional) Command to execute for building. Open this option if it's a front-end project
+        "compress": true, // Whether to upload in compressed form. Default is false
+        //"remote_unpacked": true, // Whether to unpack remotely after compressed upload (requires SSH support). Default is true for SSH, false for others
+        //"delete_remote_compress": true, // Whether to delete the remote compressed file after uploading the compressed file. Default is true for SSH, false for others
+        //"delete_local_compress": true, // Whether to delete the local compressed file after uploading the compressed file. Default is true
+        "distPath": [], // (Optional) Local directories to be uploaded. Supports strings or arrays. Default is to upload the root directory
+        "upload_to_root": false, // If only one directory is configured in distPath, upload it to the root of the remotePath. Generally used for deploying front-end code. Default is false
+        "deleteRemote": false, // Whether to delete the remote distPath directory before uploading. Generally used for cleaning up front-end deployment code. Default is false
+        "remotePath": "/www/wwwroot/test", // (For sftp, ssh configuration) Server address for upload
+        "excludePath": [], // (Optional) Files and directories to be excluded from upload in the current environment. It will be merged with the plugin's excludePath configuration. When the plugin uses gitignore, it will be merged with the .gitignore configuration file
+        // "downloadPath": "" // (Optional) Download path. Default is the current project root directory. Used when manually downloading files or folders. You can specify a download address
+        // "downloadExcludePath": [], //  (Optional) Files and directories to be excluded from download
+        "default": false // Whether it's the default environment. When set to true, you can use the right-click menu to quickly upload files or folders and compare with remote files. Default is false
+    },
+    "online": {
+        // Production environment
+        "type": "sftp",
+        "host": "mtvn",
+        "port": 60000,
+        // "proxy": true,
+        "username": "root",
+        "password": "4s!@#()()(1111",
+        // "privateKeyPath": "/your_path/id_rsa",
+        "upload_on_save": true,
+        "watch": false,
+        "submit_git_before_upload": true,
+        "submit_git_msg": "",
+        // "build": "yarn build:online",
+        "compress": false,
+        //"remote_unpacked": false,
+        //"delete_remote_compress": true,
+        "upload_to_root": false,
+        "deleteRemote": false,
+        "distPath": [],
+        "remotePath": "/var/www/monitor_v2",
+        "excludePath": [],
+        // "downloadPath": "", 
+        // "downloadExcludePath": [],
+        "default": true
+    },
+    "103_235": {
+        // Production environment
+        "type": "sftp",
+        "host": "103.163.216.235",
+        "port": 22,
+        // "proxy": true,
+        "username": "root",
+        "password": "qqqppp@12ppp",
+        // "privateKeyPath": "/your_path/id_rsa",
+        "upload_on_save": true,
+        "watch": false,
+        "submit_git_before_upload": true,
+        "submit_git_msg": "",
+        // "build": "yarn build:online",
+        "compress": false,
+        //"remote_unpacked": false,
+        //"delete_remote_compress": true,
+        "upload_to_root": false,
+        "deleteRemote": false,
+        "distPath": [],
+        "remotePath": "/code/",
+        "excludePath": [],
+        // "downloadPath": "", 
+        // "downloadExcludePath": [],
+        "default": true
+    }
+}

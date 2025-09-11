@@ -1,0 +1,48 @@
+{
+  "metadata": {
+    "timestamp": "2025-09-11T15:16:44.949843",
+    "total_duration": 8.999507,
+    "python_version": "3.13.2",
+    "platform": "win32"
+  },
+  "statistics": {
+    "total_tests": 2,
+    "passed_tests": 1,
+    "failed_tests": 1,
+    "error_tests": 0,
+    "timeout_tests": 0,
+    "total_successes": 0,
+    "total_errors": 1,
+    "success_rate": 50.0
+  },
+  "results": [
+    {
+      "file": "E:\\Projects\\monitor_2025\\tests\\01.test-models-with-db-mẫu.py",
+      "name": "01.test-models-with-db-mẫu",
+      "status": "PASSED",
+      "successes": 0,
+      "errors": 0,
+      "duration": 2.250843,
+      "start_time": "",
+      "end_time": "",
+      "summary": "",
+      "error_messages": [],
+      "exit_code": 0,
+      "raw_output": ""
+    },
+    {
+      "file": "E:\\Projects\\monitor_2025\\tests\\02.test-create-local-db.py",
+      "name": "02.test-create-local-db",
+      "status": "FAILED",
+      "successes": 0,
+      "errors": 1,
+      "duration": 5.744042,
+      "start_time": "",
+      "end_time": "",
+      "summary": "",
+      "error_messages": [],
+      "exit_code": 1,
+      "raw_output": ""
+    }
+  ]
+}

@@ -15,7 +15,7 @@ class MonitorItem(Base):
     # Exact columns from the actual table structure
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=True)
-    enable = Column(Boolean, nullable=True)  # tinyint(1) -> Boolean
+    enable = Column(Integer, nullable=True)  # TINYINT in DB, using Integer
     last_check_status = Column(Integer, nullable=True)  # -1=lỗi, 1=OK, NULL=chưa check
     url_check = Column(String(500), nullable=True)
     type = Column(String(64), nullable=True)
@@ -25,16 +25,16 @@ class MonitorItem(Base):
     deleted_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     check_interval_seconds = Column(Integer, default=360)
-    result_valid = Column(Text, nullable=True)
-    result_error = Column(Text, nullable=True)
+    result_valid = Column(String(1024), nullable=True)  # VARCHAR(1024) in DB
+    result_error = Column(String(1024), nullable=True)  # VARCHAR(1024) in DB
     stopTo = Column(DateTime, nullable=True)
     pingType = Column(Integer, default=1)
     log = Column(Text, nullable=True)
     last_check_time = Column(DateTime, nullable=True)
     queuedSendStr = Column(Text, nullable=True)
-    forceRestart = Column(Boolean, default=False)  # tinyint(1) -> Boolean
-    count_online = Column(Integer, default=0)  # Đếm số lần check thành công
-    count_offline = Column(Integer, default=0)  # Đếm số lần check thất bại
+    forceRestart = Column(Integer, default=False)  # TINYINT in DB, using Integer
+    count_online = Column(Integer, default=0, nullable=False)  # NOT NULL in DB
+    count_offline = Column(Integer, default=0, nullable=False)  # NOT NULL in DB
     
     def __repr__(self):
         return f"<MonitorItem(id={self.id}, name='{self.name}', type='{self.type}', enable={self.enable})>"
@@ -46,11 +46,16 @@ class MonitorConfig(Base):
     __tablename__ = 'monitor_configs'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(255), nullable=True)
-    alert_type = Column(String(64), nullable=True)  # 'telegram', 'email', 'webhook', etc.
-    alert_config = Column(Text, nullable=True)  # JSON hoặc string config
+    name = Column(String(128), nullable=False)  # NOT NULL in DB
+    user_id = Column(Integer, nullable=True)  # Extra column in DB
+    status = Column(Integer, nullable=True)  # Extra column in DB
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
+    deleted_at = Column(DateTime, nullable=True)  # Extra column in DB
+    image_list = Column(String(255), nullable=True)  # Extra column in DB
+    log = Column(Text, nullable=True)  # Extra column in DB
+    alert_type = Column(String(64), nullable=True)  # 'telegram', 'email', 'webhook', etc.
+    alert_config = Column(Text, nullable=True)  # JSON hoặc string config
     
     def __repr__(self):
         return f"<MonitorConfig(id={self.id}, name='{self.name}', alert_type='{self.alert_type}')>"
@@ -65,6 +70,7 @@ class MonitorAndConfig(Base):
     monitor_item_id = Column(Integer, nullable=False)
     config_id = Column(Integer, nullable=False)
     created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)  # Extra column in DB
     
     def __repr__(self):
         return f"<MonitorAndConfig(id={self.id}, monitor_item_id={self.monitor_item_id}, config_id={self.config_id})>"
@@ -76,18 +82,50 @@ class MonitorSettings(Base):
     __tablename__ = 'monitor_settings'
     
     id = Column(Integer, primary_key=True, autoincrement=True)
-    user_id = Column(Integer, nullable=False, unique=True)  # Unique per user
+    user_id = Column(Integer, nullable=True)  # Nullable in DB, not unique
     status = Column(Integer, default=1)  # 1=active, 0=inactive
     created_at = Column(DateTime, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     deleted_at = Column(DateTime, nullable=True)
     log = Column(Text, nullable=True)
-    alert_time_ranges = Column(String(255), nullable=True)  # Format: "05:30-23:00" hoặc nhiều range
+    alert_time_ranges = Column(String(64), nullable=True)  # VARCHAR(64) in DB
     timezone = Column(Integer, default=7)  # GMT offset: 7 = Asia/Ho_Chi_Minh, 0 = UTC, etc.
     global_stop_alert_to = Column(DateTime, nullable=True)  # Dừng alert đến thời gian này
     
     def __repr__(self):
         return f"<MonitorSettings(id={self.id}, user_id={self.user_id}, alert_time_ranges='{self.alert_time_ranges}')>"
+
+class User(Base):
+    """
+    SQLAlchemy ORM model for users table
+    Based on actual database schema
+    """
+    __tablename__ = 'users'
+    
+    # Columns that actually exist in DB
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    old_id = Column(Integer, nullable=True)  # Extra column in DB
+    id__ = Column(String(255), nullable=True)  # Extra column in DB
+    username = Column(String(255), nullable=True)  # Nullable in DB
+    password = Column(String(255), nullable=True)  # Different name from model
+    email = Column(String(255), nullable=False)  # NOT NULL in DB
+    phone_number = Column(Integer, nullable=True)  # BIGINT in DB, not VARCHAR
+    created_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+    is_admin = Column(Integer, nullable=True)  # Extra column in DB (TINYINT)
+    deleted_at = Column(DateTime, nullable=True)
+    token_user = Column(String(255), nullable=True)  # Extra column in DB
+    site_id = Column(Integer, nullable=True)  # Extra column in DB
+    name = Column(String(255), nullable=True)  # Extra column in DB
+    remember_token = Column(String(100), nullable=True)  # Extra column in DB
+    email_active_at = Column(DateTime, nullable=True)  # Extra column in DB
+    reg_str = Column(String(256), nullable=True)  # VARCHAR(256) in DB, not TEXT
+    log = Column(Text, nullable=True)  # Extra column in DB
+    reset_pw = Column(String(255), nullable=True)  # Extra column in DB
+    avatar = Column(String(128), nullable=True)  # Exists but different length
+    
+    def __repr__(self):
+        return f"<User(id={self.id}, username='{self.username}', email='{self.email}', is_admin={self.is_admin})>"
 
 def get_telegram_config_for_monitor_item(monitor_item_id):
     """

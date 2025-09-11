@@ -14,6 +14,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
+# Add project root to Python path
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root))
+
 def print_banner():
     """Print test banner"""
     print("="*80)
@@ -25,13 +29,14 @@ def print_banner():
 
 def get_test_files() -> List[str]:
     """Get all test files in tests directory"""
-    tests_dir = Path(__file__).parent / "tests"
+    tests_dir = Path(__file__).parent  # Current directory (tests folder)
     test_files = []
     
     if tests_dir.exists():
+        current_file = Path(__file__).name  # Get current file name
         for file in tests_dir.glob("*.py"):
-            # Include all numbered test files
-            if re.match(r'^\d+\..*\.py$', file.name):
+            # Include all numbered test files, exclude current file (test runner)
+            if re.match(r'^\d+\..*\.py$', file.name) and file.name != current_file:
                 test_files.append(str(file))
     
     return sorted(test_files)
@@ -129,7 +134,7 @@ def run_single_test(test_file: str) -> Dict:
         # Run the test with timeout
         result = subprocess.run(
             [sys.executable, test_file],
-            cwd=Path(__file__).parent,
+            cwd=Path(__file__).parent.parent,  # Run from project root, not tests folder
             capture_output=False,  # Don't capture output to see real-time results
             text=True,
             timeout=300  # 5 minute timeout per test
@@ -295,9 +300,12 @@ def save_json_report(results: List[Dict], total_duration: float):
     
     print(f"📄 Detailed JSON report saved to: {report_file}")
 
-def run_all_numbered_tests():
+def run_all_numbered_tests(stop_on_error=False):
     """Run all numbered test files and generate comprehensive report"""
     print_banner()
+    
+    if stop_on_error:
+        print("🛑 Stop-on-error mode: Will stop at first failure")
     
     # Get test files
     test_files = get_test_files()
@@ -319,6 +327,14 @@ def run_all_numbered_tests():
         result = run_single_test(test_file)
         results.append(result)
         
+        # Check if we should stop on error
+        if stop_on_error and result['status'] in ['FAILED', 'ERROR', 'TIMEOUT']:
+            print(f"\n🛑 STOPPING: Test {result['name']} failed (stop-on-error mode)")
+            print(f"   Status: {result['status']}")
+            if result.get('error_messages'):
+                print(f"   Error: {result['error_messages'][0]}")
+            break
+        
         # Brief pause between tests
         if i < len(test_files):
             time.sleep(1)
@@ -335,20 +351,26 @@ def run_all_numbered_tests():
 
 def main():
     """Main test runner"""
+    stop_on_error = False
+    
     # Check command line arguments
     if len(sys.argv) > 1:
         if sys.argv[1] == '--help':
             print("Monitor Service Master Test Runner")
             print("Usage:")
-            print("  python run_all_tests.py              - Run all numbered tests")
-            print("  python run_all_tests.py --help       - Show this help")
+            print("  python run_all_tests.py                    - Run all numbered tests")
+            print("  python run_all_tests.py --stop-on-error   - Stop at first failure")
+            print("  python run_all_tests.py --help            - Show this help")
             return
+        elif sys.argv[1] == '--stop-on-error':
+            stop_on_error = True
         else:
             print(f"Unknown option: {sys.argv[1]}")
+            print("Use --help to see available options")
             return
     
     # Run all numbered tests
-    success = run_all_numbered_tests()
+    success = run_all_numbered_tests(stop_on_error=stop_on_error)
     
     # Exit with appropriate code
     sys.exit(0 if success else 1)

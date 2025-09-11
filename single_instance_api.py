@@ -462,20 +462,54 @@ class MonitorAPI:
                 # Lazy init monitor references
                 self._init_monitor_refs()
                 
-                threads_info = {}
-                for thread_id, thread_obj in self.running_threads.items():
-                    threads_info[str(thread_id)] = {
-                        'thread_name': thread_obj.name,
-                        'is_alive': thread_obj.is_alive(),
-                        'consecutive_errors': self.thread_consecutive_errors.get(thread_id, 0),
-                        'last_alert_time': datetime.fromtimestamp(
-                            self.thread_last_alert_time.get(thread_id, 0)
-                        ).isoformat() if self.thread_last_alert_time.get(thread_id) else None
+                threads_info = []
+                for thread_id, thread_info in self.running_threads.items():
+                    # thread_info is a dict with keys: 'thread', 'start_time', 'monitor_item'
+                    thread_obj = thread_info.get('thread')
+                    monitor_item = thread_info.get('monitor_item')
+                    start_time = thread_info.get('start_time')
+                    
+                    # Handle start_time - could be datetime object or timestamp
+                    start_time_iso = None
+                    if start_time:
+                        if hasattr(start_time, 'isoformat'):
+                            # It's already a datetime object
+                            start_time_iso = start_time.isoformat()
+                        elif isinstance(start_time, (int, float)):
+                            # It's a timestamp
+                            start_time_iso = datetime.fromtimestamp(start_time).isoformat()
+                    
+                    # Get consecutive errors safely
+                    consecutive_errors = 0
+                    last_alert_time = None
+                    
+                    if self.thread_alert_managers and thread_id in self.thread_alert_managers:
+                        alert_manager = self.thread_alert_managers[thread_id]
+                        consecutive_errors = getattr(alert_manager, 'thread_count_consecutive_error', 0)
+                        last_alert_timestamp = getattr(alert_manager, 'thread_last_alert_time', 0)
+                        if last_alert_timestamp:
+                            try:
+                                last_alert_time = datetime.fromtimestamp(last_alert_timestamp).isoformat()
+                            except (ValueError, OSError):
+                                last_alert_time = None
+                    
+                    thread_data = {
+                        'id': str(thread_id),
+                        'name': getattr(thread_obj, 'name', f'Thread-{thread_id}') if thread_obj else f'Thread-{thread_id}',
+                        'monitor_name': getattr(monitor_item, 'name', 'Unknown') if monitor_item else 'Unknown',
+                        'monitor_type': getattr(monitor_item, 'type', 'Unknown') if monitor_item else 'Unknown',
+                        'is_alive': thread_obj.is_alive() if thread_obj else False,
+                        'start_time': start_time_iso,
+                        'consecutive_errors': consecutive_errors,
+                        'last_alert_time': last_alert_time,
+                        'status': 'Running' if (thread_obj and thread_obj.is_alive()) else 'Stopped'
                     }
+                    threads_info.append(thread_data)
                 
                 return jsonify({
                     'threads': threads_info,
                     'total_running': len(self.running_threads),
+                    'active_count': len([t for t in threads_info if t['is_alive']]),
                     'timestamp': datetime.now().isoformat()
                 })
             except Exception as e:

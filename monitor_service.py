@@ -67,7 +67,10 @@ def get_api_port():
 
 # Load environment variables FIRST - check for --test argument  
 if '--test' in sys.argv or 'test' in sys.argv:
-    print("🧪 TEST MODE detected - Loading test environment (.env.test)")
+    try:
+        print("[TEST MODE] Loading test environment (.env.test)")
+    except UnicodeEncodeError:
+        print("TEST MODE - Loading test environment (.env.test)")
     load_dotenv('.env.test')
 else:
     load_dotenv()
@@ -96,10 +99,10 @@ stop_flags = {}  # Dictionary để signal stop cho từng thread riêng biệt
 thread_alert_managers = {}  # {thread_id: class_send_alert_of_thread_instance}
 thread_alert_lock = threading.Lock()  # Lock để thread-safe khi truy cập alert managers
 
-# Throttle settings
-TELEGRAM_THROTTLE_SECONDS = 30  # Giây throttle cho Telegram
-CONSECUTIVE_ERROR_THRESHOLD = 10  # Ngưỡng lỗi liên tiếp để giãn alert
-EXTENDED_ALERT_INTERVAL_MINUTES = 5  # Số phút giãn alert sau khi quá ngưỡng (0 = không giãn)
+# Throttle settings - Read from environment variables
+TELEGRAM_THROTTLE_SECONDS = safe_get_env_int('TELEGRAM_THROTTLE_SECONDS', 30)  # Giây throttle cho Telegram
+CONSECUTIVE_ERROR_THRESHOLD = safe_get_env_int('CONSECUTIVE_ERROR_THRESHOLD', 10)  # Ngưỡng lỗi liên tiếp để giãn alert
+EXTENDED_ALERT_INTERVAL_MINUTES = safe_get_env_int('EXTENDED_ALERT_INTERVAL_MINUTES', 5)  # Số phút giãn alert sau khi quá ngưỡng (0 = không giãn)
 
 
 def get_alert_manager(thread_id):
