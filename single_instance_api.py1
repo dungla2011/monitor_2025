@@ -729,7 +729,7 @@ DASHBOARD_HTML = '''
             </ul>
             <p><strong>Example with curl:</strong></p>
             <pre><code># Get token
-curl -u admin:qqqppp@123 -X POST http://127.0.0.1:5005/api/token
+curl -u admin:.... -X POST http://127.0.0.1:5005/api/token
 
 # Use token
 curl -H "Authorization: Bearer &lt;token&gt;" http://127.0.0.1:5005/api/status</code></pre>

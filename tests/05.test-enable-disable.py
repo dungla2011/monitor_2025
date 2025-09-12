@@ -17,8 +17,22 @@ from requests.auth import HTTPBasicAuth
 import pymysql
 from dotenv import load_dotenv
 
-# Load test environment
-load_dotenv('.env.test')
+def find_project_root():
+    """Find project root directory (where .env files are located)"""
+    current_dir = os.path.abspath(__file__)
+    
+    # Try to find project root by looking for .env file
+    for _ in range(5):  # Max 5 levels up
+        current_dir = os.path.dirname(current_dir)
+        if os.path.exists(os.path.join(current_dir, '.env')):
+            return current_dir
+    
+    # Fallback: assume we're in tests/ folder
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Load test environment with proper path
+project_root = find_project_root()
+load_dotenv(os.path.join(project_root, '.env.test'))
 
 class DynamicMonitorTester:
     def __init__(self):
@@ -321,9 +335,17 @@ class DynamicMonitorTester:
             print("🕒 Test completed at:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 def main():
+    start_time = datetime.now()
     print("🧪 Starting Dynamic Monitor Control Test...")
+    print(f"🕒 Test started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    
     tester = DynamicMonitorTester()
     success = tester.run_test()
+    
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+    print(f"⏱️  Test duration: {duration:.2f} seconds")
+    
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

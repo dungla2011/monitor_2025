@@ -29,7 +29,7 @@ def simulate_consecutive_errors():
     
     # Lấy monitor item để test
     session = SessionLocal()
-    test_item = session.query(MonitorItem).filter(MonitorItem.enable == True).first()
+    test_item = session.query(MonitorItem).filter(MonitorItem.enable == 1).first()
     session.close()
     
     if not test_item:

@@ -17,6 +17,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import logging
+import time
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
 from sqlalchemy.exc import SQLAlchemyError
@@ -487,59 +488,28 @@ class LocalDatabaseCreator:
         
         print("🕒 Test completed at:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-def create_env_test_file():
-    """Create .env.test file for local testing"""
-    env_test_content = """# Local Test Database Configuration
-DB_HOST=localhost
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=monitor_test
 
-# HTTP API Server Configuration (different port to avoid conflicts)
-HTTP_PORT=5006
-HTTP_HOST=127.0.0.1
-
-# Admin Domain Configuration
-ADMIN_DOMAIN=localhost
-
-# Web Admin Authentication
-WEB_ADMIN_USERNAME=admin
-WEB_ADMIN_PASSWORD=test123
-
-# Telegram Configuration (Test Bot - Optional)
-# TELEGRAM_BOT_TOKEN=TEST_TOKEN
-# TELEGRAM_CHAT_ID=TEST_CHAT_ID
-
-# Alert Throttling Configuration
-TELEGRAM_THROTTLE_SECONDS=10
-CONSECUTIVE_ERROR_THRESHOLD=10
-EXTENDED_ALERT_INTERVAL_MINUTES=5
-
-"""
-    
-    try:
-        with open('.env.test', 'w') as f:
-            f.write(env_test_content)
-        print("✅ Created .env.test file for local testing")
-        return True
-    except Exception as e:
-        print(f"❌ Failed to create .env.test file: {e}")
-        return False
 
 def main():
     """Main test runner"""
+    start_time = datetime.now()
     print("🚀 Starting Local Database Creation Test...")
+    print(f"🕒 Test started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     
     # Create .env.test file first
-    create_env_test_file()
+    # create_env_test_file()
     
     creator = LocalDatabaseCreator()
     success = creator.run_comprehensive_test()
     
     # Exit with appropriate code
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
     exit_code = 0 if success else 1
-    print(f"\n🏁 Test finished with exit code: {exit_code}")
+    
+    print(f"🕒 Test completed at: {end_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"⏱️  Test duration: {duration:.2f} seconds")
+    print(f"🏁 Test finished with exit code: {exit_code}")
     sys.exit(exit_code)
 
 if __name__ == "__main__":

@@ -44,7 +44,7 @@ def test_telegram_config_functions():
         print("\n🤖 Testing Telegram config functions...")
         
         # Lấy monitor items để test
-        monitor_items = session.query(MonitorItem).filter(MonitorItem.enable == True).all()
+        monitor_items = session.query(MonitorItem).filter(MonitorItem.enable == 1).all()
         
         if not monitor_items:
             print("   ⚠️ No enabled monitor items found")
@@ -102,7 +102,7 @@ def create_sample_data():
         print(f"   ✅ Created sample config with ID: {config_id}")
         
         # Lấy monitor item đầu tiên để link
-        first_item = session.query(MonitorItem).filter(MonitorItem.enable == True).first()
+        first_item = session.query(MonitorItem).filter(MonitorItem.enable == 1).first()
         
         if first_item:
             # Tạo relation

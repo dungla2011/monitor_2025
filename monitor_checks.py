@@ -13,6 +13,33 @@ from urllib.parse import urlparse
 from datetime import datetime, timezone
 from utils import ol1
 
+# Global session với connection pooling để tái sử dụng connections
+_session = None
+
+def get_http_session():
+    """
+    Tạo hoặc trả về session HTTP với connection pooling
+    """
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        # Cấu hình connection pooling
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=10,  # Số connection pools
+            pool_maxsize=20,      # Số connections tối đa trong pool
+            max_retries=2         # Số lần retry
+        )
+        _session.mount('http://', adapter)
+        _session.mount('https://', adapter)
+        
+        # Cấu hình headers mặc định
+        _session.headers.update({
+            'User-Agent': 'Monitor2025/1.0 Health Check Bot',
+            'Accept': 'text/html,application/json,*/*',
+            'Connection': 'keep-alive'
+        })
+    return _session
+
 
 def extract_domain_from_url(url):
     """
@@ -50,6 +77,8 @@ def ping_icmp(host, timeout=5):
     Returns: (success: bool, response_time: float or None, error_message: str)
     """
     try:
+        # Rate limiting: Small delay to avoid network congestion
+        time.sleep(0.05)
         # Xác định command ping dựa trên OS
         if platform.system().lower() == "windows":
             cmd = ["ping", "-n", "1", "-w", str(timeout * 1000), host]
@@ -86,6 +115,8 @@ def check_ssl_certificate(host, port=443, timeout=10):
     Returns: (is_valid: bool, days_until_expiry: int, expiry_date: str, error_message: str)
     """
     try:
+        # Rate limiting: Small delay to avoid SSL connection flooding
+        time.sleep(0.01)
         import ssl
         import socket
         from datetime import datetime, timezone
@@ -159,6 +190,8 @@ def check_tcp_port(host, port, timeout=5):
     Returns: (is_open: bool, response_time: float or None, error_message: str)
     """
     try:
+        # Rate limiting: Small delay to avoid port scanning alarms
+        time.sleep(0.01)
         import socket
         
         start_time = time.time()
@@ -190,6 +223,8 @@ def ping_web(url, timeout=10):
     Returns: (success: bool, status_code: int or None, response_time: float, error_message: str)
     """
     try:
+        # Rate limiting: Small delay to avoid overwhelming servers
+        time.sleep(0.1)
         # Tự động thêm scheme nếu không có
         if '://' not in url:
             # Thử HTTPS trước, nếu fail thì HTTP
@@ -198,7 +233,8 @@ def ping_web(url, timeout=10):
             test_url = url
         
         start_time = time.time()
-        response = requests.get(test_url, timeout=timeout, allow_redirects=True)
+        session = get_http_session()
+        response = session.get(test_url, timeout=timeout, allow_redirects=True)
         end_time = time.time()
         
         response_time = (end_time - start_time) * 1000  # Convert to milliseconds
@@ -214,7 +250,8 @@ def ping_web(url, timeout=10):
             try:
                 test_url = f"http://{url}"
                 start_time = time.time()
-                response = requests.get(test_url, timeout=timeout, allow_redirects=True)
+                session = get_http_session()
+                response = session.get(test_url, timeout=timeout, allow_redirects=True)
                 end_time = time.time()
                 
                 response_time = (end_time - start_time) * 1000
@@ -253,7 +290,8 @@ def fetch_web_content(url, timeout=10, max_size=102400):
         start_time = time.time()
         
         # Stream download để kiểm soát kích thước
-        response = requests.get(test_url, timeout=timeout, allow_redirects=True, stream=True)
+        session = get_http_session()
+        response = session.get(test_url, timeout=timeout, allow_redirects=True, stream=True)
         end_time = time.time()
         
         response_time = (end_time - start_time) * 1000  # Convert to milliseconds
@@ -291,7 +329,8 @@ def fetch_web_content(url, timeout=10, max_size=102400):
             try:
                 test_url = f"http://{url}"
                 start_time = time.time()
-                response = requests.get(test_url, timeout=timeout, allow_redirects=True, stream=True)
+                session = get_http_session()
+                response = session.get(test_url, timeout=timeout, allow_redirects=True, stream=True)
                 end_time = time.time()
                 
                 response_time = (end_time - start_time) * 1000

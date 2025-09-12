@@ -1,0 +1,104 @@
+{
+  "metadata": {
+    "timestamp": "2025-09-12T08:46:17.154184",
+    "total_duration": 338.992623,
+    "python_version": "3.13.2",
+    "platform": "win32"
+  },
+  "statistics": {
+    "total_tests": 6,
+    "passed_tests": 5,
+    "failed_tests": 1,
+    "error_tests": 0,
+    "timeout_tests": 0,
+    "total_successes": 0,
+    "total_errors": 1,
+    "success_rate": 83.33333333333334
+  },
+  "results": [
+    {
+      "file": "E:\\Projects\\monitor_2025\\tests\\01.test-models-with-db-mẫu.py",
+      "name": "01.test-models-with-db-mẫu",
+      "status": "PASSED",
+      "successes": 0,
+      "errors": 0,
+      "duration": 2.334008,
+      "start_time": "",
+      "end_time": "",
+      "summary": "",
+      "error_messages": [],
+      "exit_code": 0,
+      "raw_output": ""
+    },
+    {
+      "file": "E:\\Projects\\monitor_2025\\tests\\02.test-create-local-db.py",
+      "name": "02.test-create-local-db",
+      "status": "PASSED",
+      "successes": 0,
+      "errors": 0,
+      "duration": 1.870565,
+      "start_time": "",
+      "end_time": "",
+      "summary": "",
+      "error_messages": [],
+      "exit_code": 0,
+      "raw_output": ""
+    },
+    {
+      "file": "E:\\Projects\\monitor_2025\\tests\\03.test-api-endpoints-create-new-console-ok.py",
+      "name": "03.test-api-endpoints-create-new-console-ok",
+      "status": "PASSED",
+      "successes": 0,
+      "errors": 0,
+      "duration": 35.266361,
+      "start_time": "",
+      "end_time": "",
+      "summary": "",
+      "error_messages": [],
+      "exit_code": 0,
+      "raw_output": ""
+    },
+    {
+      "file": "E:\\Projects\\monitor_2025\\tests\\05.test-enable-disable.py",
+      "name": "05.test-enable-disable",
+      "status": "PASSED",
+      "successes": 0,
+      "errors": 0,
+      "duration": 55.029769,
+      "start_time": "",
+      "end_time": "",
+      "summary": "",
+      "error_messages": [],
+      "exit_code": 0,
+      "raw_output": ""
+    },
+    {
+      "file": "E:\\Projects\\monitor_2025\\tests\\06.test-webhook-alerts.py",
+      "name": "06.test-webhook-alerts",
+      "status": "FAILED",
+      "successes": 0,
+      "errors": 1,
+      "duration": 100.28273,
+      "start_time": "",
+      "end_time": "",
+      "summary": "",
+      "error_messages": [],
+      "exit_code": 1,
+      "raw_output": ""
+    },
+    {
+      "file": "E:\\Projects\\monitor_2025\\tests\\07.test-telegram-alerts.py",
+      "name": "07.test-telegram-alerts",
+      "status": "PASSED",
+      "successes": 0,
+      "errors": 0,
+      "duration": 139.19552,
+      "start_time": "",
+      "end_time": "",
+      "summary": "",
+      "error_messages": [],
+      "exit_code": 0,
+      "raw_output": ""
+    }
+  ]
+}

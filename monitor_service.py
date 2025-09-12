@@ -71,7 +71,7 @@ if '--test' in sys.argv or 'test' in sys.argv:
         print("[TEST MODE] Loading test environment (.env.test)")
     except UnicodeEncodeError:
         print("TEST MODE - Loading test environment (.env.test)")
-    load_dotenv('.env.test')
+    load_dotenv('.env.test', override=True)  # Force override existing variables
 else:
     load_dotenv()
 
@@ -277,7 +277,7 @@ def get_all_monitor_items_main_thread(chunk_info=None):
         query = session.query(MonitorItem).filter(
             MonitorItem.url_check.isnot(None),
             MonitorItem.url_check != '',
-            MonitorItem.enable == True
+            MonitorItem.enable == 1  # PostgreSQL compatible: 1 instead of True
         )
         
         if chunk_info:
@@ -323,7 +323,10 @@ def start_api_server():
         ol1("🔧 Initializing API server...")
         port = get_api_port()  # Use chunk-aware port
         host = os.getenv('HTTP_HOST', '127.0.0.1')
+
+        print(f"🌐 Starting API server at http://{host}:{port}")
         
+
         api = MonitorAPI(host=host, port=port)
         
         # Pass references directly để tránh circular import
@@ -916,7 +919,7 @@ def get_enabled_items_from_db():
         query = session.query(MonitorItem).filter(
             MonitorItem.url_check.isnot(None),
             MonitorItem.url_check != '',
-            MonitorItem.enable == True
+            MonitorItem.enable == 1  # PostgreSQL compatible: 1 instead of True
         ).order_by(MonitorItem.id)  # Đảm bảo thứ tự consistent
         
         # Apply chunk nếu có
@@ -939,7 +942,7 @@ def get_enabled_items_from_db():
         else:
             # No chunk - get all enabled items
             items = query.all()
-            ol1(f"📊 Got {len(items)} enabled items (no chunk mode)")
+            # ol1(f"📊 Got {len(items)} enabled items (no chunk mode)")
         
         session.close()
         return items
@@ -1177,7 +1180,7 @@ def get_all_enabled_monitor_items():
         items = session.query(MonitorItem).filter(
             MonitorItem.url_check.isnot(None),
             MonitorItem.url_check != '',
-            MonitorItem.enable == True
+            MonitorItem.enable == 1  # PostgreSQL compatible: 1 instead of True
         ).all()
         session.close()
         return items

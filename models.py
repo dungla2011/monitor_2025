@@ -460,7 +460,7 @@ if __name__ == "__main__":
     get_all_monitor_items_orm()
     
     print("\n2. Getting filtered items (enabled only):")
-    get_monitor_items_with_filter_orm(enable=True)
+    get_monitor_items_with_filter_orm(enable=1)  # PostgreSQL compatible: 1 instead of True
     
     print("\n3. Getting ping_web type items:")
     get_monitor_items_with_filter_orm(monitor_type='ping_web')

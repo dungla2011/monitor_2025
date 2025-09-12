@@ -45,7 +45,7 @@ def main():
         SessionLocal = sessionmaker(bind=engine)
         session = SessionLocal()
         
-        enabled_items = session.query(MonitorItem).filter(MonitorItem.enable == True).all()
+        enabled_items = session.query(MonitorItem).filter(MonitorItem.enable == 1).all()
         
         if not enabled_items:
             print("❌ No enabled monitor items found in database")

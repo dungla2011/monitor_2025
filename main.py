@@ -39,7 +39,7 @@ def main():
         print("6. Filtering examples...")
         
         print("\n6a. Getting enabled items only:")
-        get_monitor_items_with_filter_orm(enable=True)
+        get_monitor_items_with_filter_orm(enable=1)  # PostgreSQL compatible: 1 instead of True
         
         print("\n6b. Getting ping_web type items:")
         get_monitor_items_with_filter_orm(monitor_type='ping_web')

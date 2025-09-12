@@ -79,7 +79,7 @@ from models import MonitorItem
 session = sessionmaker(bind=engine)()
 try:
     total = session.query(MonitorItem).count()
-    enabled = session.query(MonitorItem).filter(MonitorItem.enable == True).count()
+    enabled = session.query(MonitorItem).filter(MonitorItem.enable == 1).count()
     test_1k = session.query(MonitorItem).filter(MonitorItem.name.like('TEST_%')).filter(~MonitorItem.name.like('TEST_3K_%')).count()
     test_3k = session.query(MonitorItem).filter(MonitorItem.name.like('TEST_3K_%')).count()
     online = session.query(MonitorItem).filter(MonitorItem.last_check_status == 1).count()

@@ -291,7 +291,7 @@ class MonitorTester:
             
             # Test query operations
             all_items = session.query(MonitorItem).all()
-            enabled_items = session.query(MonitorItem).filter_by(enable=True).all()
+            enabled_items = session.query(MonitorItem).filter_by(enable=1).all()
             test_items = session.query(MonitorItem).filter(MonitorItem.name.startswith('TEST_')).all()
             
             self.print_test("Query All Items", True, f"Found {len(all_items)} total items")

@@ -8,7 +8,7 @@ Monitor Service API hỗ trợ 2 phương thức authentication:
 - Username/Password được cấu hình trong `.env`:
   ```
   WEB_ADMIN_USERNAME=admin
-  WEB_ADMIN_PASSWORD=qqqppp@123
+  WEB_ADMIN_PASSWORD=....@123
   ```
 - Session được lưu trong browser cookies
 
@@ -29,13 +29,13 @@ Monitor Service API hỗ trợ 2 phương thức authentication:
 ### Method 1: Using curl with Basic Auth
 ```bash
 # Get Simple Token (never expires)
-curl -u admin:qqqppp@123 \
+curl -u admin:....3 \
   -H "Content-Type: application/json" \
   -d '{"type":"simple"}' \
   http://127.0.0.1:5005/api/token
 
 # Get JWT Token (expires in 24 hours)  
-curl -u admin:qqqppp@123 \
+curl -u admin:.... \
   -H "Content-Type: application/json" \
   -d '{"type":"jwt","expires_hours":24}' \
   http://127.0.0.1:5005/api/token

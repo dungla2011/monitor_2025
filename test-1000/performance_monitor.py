@@ -39,7 +39,7 @@ class PerformanceMonitor:
         session = SessionLocal()
         try:
             total_items = session.query(MonitorItem).count()
-            enabled_items = session.query(MonitorItem).filter(MonitorItem.enable == True).count()
+            enabled_items = session.query(MonitorItem).filter(MonitorItem.enable == 1).count()
             test_1k_items = session.query(MonitorItem).filter(MonitorItem.name.like('TEST_%')).filter(~MonitorItem.name.like('TEST_3K_%')).count()
             test_3k_items = session.query(MonitorItem).filter(MonitorItem.name.like('TEST_3K_%')).count()
             

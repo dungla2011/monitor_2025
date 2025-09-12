@@ -11,7 +11,7 @@ from requests.auth import HTTPBasicAuth
 # Configuration
 BASE_URL = "http://127.0.0.1:5005"
 USERNAME = "admin"
-PASSWORD = "qqqppp@123"
+PASSWORD = ""
 
 print("="*60)
 print("🔐 API AUTHENTICATION TEST")

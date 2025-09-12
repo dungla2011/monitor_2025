@@ -160,7 +160,7 @@ class MonitorAPI:
         
         # Get authentication credentials from environment
         self.admin_username = os.getenv('WEB_ADMIN_USERNAME', 'admin')
-        self.admin_password = os.getenv('WEB_ADMIN_PASSWORD', 'admin123')
+        self.admin_password = os.getenv('WEB_ADMIN_PASSWORD', 'qqqabc@123')
         
         # Không import ngay để tránh circular import
         self.running_threads = None
@@ -763,7 +763,7 @@ DASHBOARD_HTML = '''
             </ul>
             <p><strong>Example with curl:</strong></p>
             <pre><code># Get token
-curl -u admin:qqqppp@123 -X POST http://127.0.0.1:5005/api/token
+curl -u admin:.... -X POST http://127.0.0.1:5005/api/token
 
 # Use token
 curl -H "Authorization: Bearer &lt;token&gt;" http://127.0.0.1:5005/api/status</code></pre>

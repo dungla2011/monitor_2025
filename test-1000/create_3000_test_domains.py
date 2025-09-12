@@ -145,7 +145,7 @@ def create_3000_test_domains():
                     # Tạo MonitorItem
                     monitor_item = MonitorItem(
                         name=f"TEST_3K_{record_number:04d}_{domain}_{monitor_type}",
-                        enable=True,  # Enable để test performance
+                        enable=1,  # Enable để test performance
                         url_check=url_check,
                         type=monitor_type,
                         check_interval_seconds=60,  # 60 giây như yêu cầu
@@ -222,7 +222,7 @@ def show_current_stats():
     session = SessionLocal()
     try:
         total_items = session.query(MonitorItem).count()
-        enabled_items = session.query(MonitorItem).filter(MonitorItem.enable == True).count()
+        enabled_items = session.query(MonitorItem).filter(MonitorItem.enable == 1).count()
         test_3k_items = session.query(MonitorItem).filter(MonitorItem.name.like('TEST_3K_%')).count()
         test_1k_items = session.query(MonitorItem).filter(MonitorItem.name.like('TEST_%')).count()
         

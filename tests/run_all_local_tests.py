@@ -27,8 +27,8 @@ def print_banner():
     print(f"� Python: {sys.version.split()[0]}")
     print("="*80)
 
-def get_test_files() -> List[str]:
-    """Get all test files in tests directory"""
+def get_test_files(filter_patterns: List[str] = None) -> List[str]:
+    """Get all test files in tests directory, optionally filtered by patterns"""
     tests_dir = Path(__file__).parent  # Current directory (tests folder)
     test_files = []
     
@@ -37,7 +37,13 @@ def get_test_files() -> List[str]:
         for file in tests_dir.glob("*.py"):
             # Include all numbered test files, exclude current file (test runner)
             if re.match(r'^\d+\..*\.py$', file.name) and file.name != current_file:
-                test_files.append(str(file))
+                # Apply filter if provided
+                if filter_patterns:
+                    # Check if filename contains any of the filter patterns
+                    if any(pattern in file.name for pattern in filter_patterns):
+                        test_files.append(str(file))
+                else:
+                    test_files.append(str(file))
     
     return sorted(test_files)
 
@@ -62,7 +68,7 @@ def parse_test_output(output: str, test_file: str) -> Dict:
     if success_match:
         result['successes'] = int(success_match.group(1))
     
-    error_match = re.search(r'❌ Errors: (\d+)', output)
+    error_match = re.search(r'❌ Errors:\s+(\d+)', output)
     if error_match:
         result['errors'] = int(error_match.group(1))
     
@@ -75,8 +81,13 @@ def parse_test_output(output: str, test_file: str) -> Dict:
     if end_match:
         result['end_time'] = end_match.group(1).strip()
     
-    # Calculate duration if possible
-    if result['start_time'] and result['end_time']:
+    # Extract duration
+    duration_match = re.search(r'Test duration: ([0-9.]+) seconds', output)
+    if duration_match:
+        result['duration'] = float(duration_match.group(1))
+    
+    # Calculate duration from start/end time if not found
+    elif result['start_time'] and result['end_time']:
         try:
             start_dt = datetime.strptime(result['start_time'], '%Y-%m-%d %H:%M:%S')
             end_dt = datetime.strptime(result['end_time'], '%Y-%m-%d %H:%M:%S')
@@ -132,35 +143,32 @@ def run_single_test(test_file: str) -> Dict:
     
     try:
         # Run the test with timeout
+        import os
+        env = os.environ.copy()
+        env['PYTHONIOENCODING'] = 'utf-8'
+        
         result = subprocess.run(
             [sys.executable, test_file],
             cwd=Path(__file__).parent.parent,  # Run from project root, not tests folder
-            capture_output=False,  # Don't capture output to see real-time results
+            capture_output=True,  # Capture output to parse results
             text=True,
+            encoding='utf-8',  # Handle Unicode characters (emojis)
+            errors='replace',  # Replace problematic characters
+            env=env,  # Set UTF-8 encoding
             timeout=300  # 5 minute timeout per test
         )
         
-        output = ""  # Since we're not capturing, output will be empty
+        output = result.stdout + result.stderr  # Combine stdout and stderr
         
-        # Parse results - determine status from exit code only
-        test_result = {
-            'file': test_file,
-            'name': Path(test_file).stem,
-            'status': 'PASSED' if result.returncode == 0 else 'FAILED',
-            'successes': 0,
-            'errors': 0 if result.returncode == 0 else 1,
-            'duration': 0,
-            'start_time': '',
-            'end_time': '',
-            'summary': '',
-            'error_messages': [],
-            'exit_code': result.returncode,
-            'raw_output': ''
-        }
+        # Parse results from output
+        test_result = parse_test_output(output, test_file)
+        test_result['exit_code'] = result.returncode
+        test_result['raw_output'] = output
         
-        # Calculate actual duration
+        # Calculate actual duration if not parsed from output
         actual_duration = (datetime.now() - start_time).total_seconds()
-        test_result['duration'] = actual_duration
+        if test_result['duration'] == 0:
+            test_result['duration'] = actual_duration
         
         # Print immediate result
         if test_result['status'] == 'PASSED':
@@ -227,9 +235,31 @@ def generate_comprehensive_report(results: List[Dict], total_duration: float):
     print(f"\n🔢 ASSERTION STATISTICS:")
     print(f"   ✅ Total Successes: {total_successes}")
     print(f"   ❌ Total Errors: {total_errors}")
-    print(f"   ⏱️ Total Duration: {total_duration:.1f} seconds")
+    if total_successes + total_errors > 0:
+        success_rate = (total_successes / (total_successes + total_errors)) * 100
+        print(f"   📈 Assertion Success Rate: {success_rate:.1f}%")
+    
+    print(f"\n⏱️  TIMING STATISTICS:")
+    total_minutes = total_duration / 60
+    total_hours = total_duration / 3600
+    
+    if total_duration < 60:
+        print(f"   📊 Total Duration: {total_duration:.1f} seconds")
+    elif total_duration < 3600:
+        print(f"   📊 Total Duration: {total_duration:.1f} seconds ({total_minutes:.1f} minutes)")
+    else:
+        print(f"   📊 Total Duration: {total_duration:.1f} seconds ({total_minutes:.1f} minutes / {total_hours:.1f} hours)")
     if total_tests > 0:
         print(f"   ⚡ Average per Test: {(total_duration/total_tests):.1f} seconds")
+        
+        # Find fastest/slowest tests
+        test_durations = [(r['name'], r.get('duration', 0)) for r in results if r.get('duration', 0) > 0]
+        if test_durations:
+            test_durations.sort(key=lambda x: x[1])
+            fastest = test_durations[0]
+            slowest = test_durations[-1]
+            print(f"   🏃 Fastest Test: {fastest[0]} ({fastest[1]:.1f}s)")
+            print(f"   🐌 Slowest Test: {slowest[0]} ({slowest[1]:.1f}s)")
     
     # Individual test results
     print(f"\n📋 DETAILED TEST RESULTS:")
@@ -257,17 +287,39 @@ def generate_comprehensive_report(results: List[Dict], total_duration: float):
         
         print()
     
-    # Final verdict
+    # Final verdict with comprehensive summary
     print("="*80)
+    print("📋 FINAL SUMMARY")
+    print("="*80)
+    
+    # Overall summary in simple lines
+    print("🧪 TEST EXECUTION SUMMARY")
+    print("-" * 40)
+    failed_count = failed_tests + error_tests + timeout_tests
+    success_rate = (passed_tests/total_tests*100 if total_tests > 0 else 0)
+    avg_time = (total_duration/total_tests if total_tests > 0 else 0)
+    
+    # Format duration nicely
+    if total_duration < 60:
+        duration_str = f"{total_duration:.1f}s"
+    elif total_duration < 3600:
+        duration_str = f"{total_duration:.1f}s ({total_duration/60:.1f}m)"
+    else:
+        duration_str = f"{total_duration:.1f}s ({total_duration/60:.1f}m {total_duration/3600:.1f}h)"
+    
+    print(f"📊 Tests Run: {total_tests} | Passed: {passed_tests} | Failed: {failed_count} | Success Rate: {success_rate:.1f}%")
+    print(f"✅ Total Successes: {total_successes} | ❌ Total Errors: {total_errors}")
+    print(f"⏱️  Total Time: {duration_str} | Average per Test: {avg_time:.1f}s")
+    
     if passed_tests == total_tests:
-        print("🎉 ALL TESTS PASSED! 🎉")
+        print("\n🎉 ALL TESTS PASSED! 🎉")
         print("✅ Monitor 2025 system is working perfectly!")
     else:
         failed_count = failed_tests + error_tests + timeout_tests
-        print(f"⚠️  {failed_count} TEST(S) FAILED")
+        print(f"\n⚠️  {failed_count} TEST(S) FAILED")
         print("❌ Some issues need to be addressed")
     
-    print(f"📅 Report completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"\n📅 Report completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("="*80)
 
 def save_json_report(results: List[Dict], total_duration: float):
@@ -287,7 +339,13 @@ def save_json_report(results: List[Dict], total_duration: float):
             'timeout_tests': len([r for r in results if r['status'] == 'TIMEOUT']),
             'total_successes': sum(r.get('successes', 0) for r in results),
             'total_errors': sum(r.get('errors', 0) for r in results),
-            'success_rate': len([r for r in results if r['status'] == 'PASSED']) / len(results) * 100 if results else 0
+            'success_rate': len([r for r in results if r['status'] == 'PASSED']) / len(results) * 100 if results else 0,
+            'assertion_success_rate': (sum(r.get('successes', 0) for r in results) / 
+                                     (sum(r.get('successes', 0) for r in results) + sum(r.get('errors', 0) for r in results)) * 100) 
+                                     if (sum(r.get('successes', 0) for r in results) + sum(r.get('errors', 0) for r in results)) > 0 else 0,
+            'average_test_duration': total_duration / len(results) if results else 0,
+            'fastest_test': min(results, key=lambda x: x.get('duration', 0))['name'] if results and any(r.get('duration', 0) > 0 for r in results) else None,
+            'slowest_test': max(results, key=lambda x: x.get('duration', 0))['name'] if results and any(r.get('duration', 0) > 0 for r in results) else None
         },
         'results': results
     }
@@ -300,15 +358,18 @@ def save_json_report(results: List[Dict], total_duration: float):
     
     print(f"📄 Detailed JSON report saved to: {report_file}")
 
-def run_all_numbered_tests(stop_on_error=False):
+def run_all_numbered_tests(stop_on_error=False, filter_patterns=None):
     """Run all numbered test files and generate comprehensive report"""
     print_banner()
     
     if stop_on_error:
         print("🛑 Stop-on-error mode: Will stop at first failure")
     
+    if filter_patterns:
+        print(f"🔍 Filter mode: Only running tests containing: {', '.join(filter_patterns)}")
+    
     # Get test files
-    test_files = get_test_files()
+    test_files = get_test_files(filter_patterns)
     
     if not test_files:
         print("❌ No numbered test files found in tests directory!")
@@ -352,25 +413,37 @@ def run_all_numbered_tests(stop_on_error=False):
 def main():
     """Main test runner"""
     stop_on_error = False
+    filter_patterns = None
     
-    # Check command line arguments
-    if len(sys.argv) > 1:
-        if sys.argv[1] == '--help':
+    # Parse command line arguments
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        
+        if arg == '--help':
             print("Monitor Service Master Test Runner")
             print("Usage:")
-            print("  python run_all_tests.py                    - Run all numbered tests")
-            print("  python run_all_tests.py --stop-on-error   - Stop at first failure")
-            print("  python run_all_tests.py --help            - Show this help")
+            print("  python run_all_tests.py                           - Run all numbered tests")
+            print("  python run_all_tests.py --stop-on-error          - Stop at first failure")
+            print("  python run_all_tests.py --filter=\"01,02\"         - Only run tests containing '01' or '02'")
+            print("  python run_all_tests.py --filter=\"webhook\"       - Only run tests containing 'webhook'")
+            print("  python run_all_tests.py --stop-on-error --filter=\"06,07\" - Combined options")
+            print("  python run_all_tests.py --help                   - Show this help")
             return
-        elif sys.argv[1] == '--stop-on-error':
+        elif arg == '--stop-on-error':
             stop_on_error = True
+        elif arg.startswith('--filter='):
+            filter_str = arg.split('=', 1)[1].strip('"\'')
+            filter_patterns = [p.strip() for p in filter_str.split(',') if p.strip()]
         else:
-            print(f"Unknown option: {sys.argv[1]}")
+            print(f"Unknown option: {arg}")
             print("Use --help to see available options")
             return
+        
+        i += 1
     
     # Run all numbered tests
-    success = run_all_numbered_tests(stop_on_error=stop_on_error)
+    success = run_all_numbered_tests(stop_on_error=stop_on_error, filter_patterns=filter_patterns)
     
     # Exit with appropriate code
     sys.exit(0 if success else 1)

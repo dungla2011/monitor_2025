@@ -22,7 +22,7 @@ python docker_deploy.py up
 
 ### 2. Access Services
 - **Web Dashboard**: http://localhost:5005
-- **Login**: admin / qqqppp@123
+- **Login**: admin / 
 - **MySQL**: localhost:3306
 
 ### 3. Check Status

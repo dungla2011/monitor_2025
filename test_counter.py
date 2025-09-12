@@ -21,7 +21,7 @@ def test_counter():
     items = session.query(MonitorItem).filter(
         MonitorItem.url_check.isnot(None),
         MonitorItem.url_check != '',
-        MonitorItem.enable == True
+        MonitorItem.enable == 1
     ).limit(3).all()
     
     if not items:

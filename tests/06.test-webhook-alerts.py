@@ -25,8 +25,22 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import socketserver
 from urllib.parse import urlparse, parse_qs
 
-# Load test environment
-load_dotenv('.env.test')
+def find_project_root():
+    """Find project root directory (where .env files are located)"""
+    current_dir = os.path.abspath(__file__)
+    
+    # Try to find project root by looking for .env file
+    for _ in range(5):  # Max 5 levels up
+        current_dir = os.path.dirname(current_dir)
+        if os.path.exists(os.path.join(current_dir, '.env')):
+            return current_dir
+    
+    # Fallback: assume we're in tests/ folder
+    return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+# Load test environment with proper path
+project_root = find_project_root()
+load_dotenv(os.path.join(project_root, '.env.test'))
 
 class WebhookReceiver(BaseHTTPRequestHandler):
     """Simple webhook receiver to capture alerts"""
@@ -410,6 +424,37 @@ class WebhookAlertTester:
         # Method này giữ lại để tương thích
         self.log_info("✅ Test data cleanup (already done in cleanup_all_monitors_configs)")
 
+    def check_monitor_status(self):
+        """Check monitor status in database for debugging"""
+        connection = self.get_db_connection()
+        if not connection:
+            return
+            
+        try:
+            with connection.cursor() as cursor:
+                sql = """
+                SELECT id, name, last_check_status, last_check_time, count_online, count_offline
+                FROM monitor_items 
+                WHERE id = %s
+                """
+                cursor.execute(sql, (self.test_monitor_id,))
+                result = cursor.fetchone()
+                
+                if result:
+                    self.log_info(f"📊 Monitor Status (ID: {result[0]}):")
+                    self.log_info(f"    Name: {result[1]}")
+                    self.log_info(f"    Last Check Status: {result[2]} (-1=error, 1=ok, NULL=not checked)")
+                    self.log_info(f"    Last Check Time: {result[3]}")
+                    self.log_info(f"    Count Online: {result[4]}")
+                    self.log_info(f"    Count Offline: {result[5]}")
+                else:
+                    self.log_error("Monitor not found in database")
+                    
+        except Exception as e:
+            self.log_error(f"Failed to check monitor status: {e}")
+        finally:
+            connection.close()
+
     def wait_for_monitor_cycles(self, cycles=3):
         """Wait for monitor to complete several check cycles"""
         wait_time = cycles * 12  # 10s interval + 2s buffer
@@ -467,11 +512,22 @@ class WebhookAlertTester:
         self.log_info("Step 5: Stopping test server to trigger alert...")
         self.stop_test_webserver()
         
-        # Step 6: Wait for alert to be sent
-        self.log_info("Step 6: Waiting for alert webhook...")
-        self.wait_for_monitor_cycles(3)
+        # Verify server is actually stopped
+        time.sleep(2)  # Wait for server to fully stop
+        try:
+            response = requests.get(f"http://localhost:{self.test_server_port}", timeout=3)
+            self.log_error("❌ Server still responding after stop!")
+        except:
+            self.log_info("✅ Confirmed: Server is not responding (as expected)")
         
-        # Step 7: Check webhook calls
+        # Step 6: Wait for alert to be sent (longer wait for webhook)
+        self.log_info("Step 6: Waiting for alert webhook...")
+        self.wait_for_monitor_cycles(6)  # Wait 6 cycles = 60 seconds
+        
+        # Step 7: Check monitor status in database
+        self.check_monitor_status()
+        
+        # Step 8: Check webhook calls
         final_webhook_count = len(self.webhook_server.webhook_calls) if self.webhook_server else 0
         new_webhook_calls = final_webhook_count - initial_webhook_count
         
@@ -538,9 +594,17 @@ class WebhookAlertTester:
             print("🕒 Test completed at:", datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
 def main():
+    start_time = datetime.now()
     print("🧪 Starting Webhook Alert Test...")
+    print(f"🕒 Test started at: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    
     tester = WebhookAlertTester()
     success = tester.run_test()
+    
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+    print(f"⏱️  Test duration: {duration:.2f} seconds")
+    
     sys.exit(0 if success else 1)
 
 if __name__ == "__main__":

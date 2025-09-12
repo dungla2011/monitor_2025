@@ -8,6 +8,9 @@ from datetime import datetime
 import threading
 import time
 
+# Global thread lock for logging
+_logging_lock = threading.Lock()
+
 
 class class_send_alert_of_thread:
     """
@@ -121,7 +124,9 @@ def ol1(msg, monitorItem=None):
         msg (str): Thông điệp cần log
         id (int, optional): Thread/Monitor ID để tách log file
     """
-    print(msg)
+    # Thread-safe console output
+    with _logging_lock:
+        print(msg)
 
     # Tạo folder logs nếu chưa có
     if not os.path.exists('logs'):

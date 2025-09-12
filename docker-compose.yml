@@ -25,7 +25,7 @@ services:
       
       # Web Admin Authentication
       - WEB_ADMIN_USERNAME=admin
-      - WEB_ADMIN_PASSWORD=qqqppp@123
+      - WEB_ADMIN_PASSWORD=...@123
       
       # Telegram Configuration (Optional)
       # - TELEGRAM_BOT_TOKEN=your_bot_token

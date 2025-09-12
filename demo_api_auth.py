@@ -9,7 +9,7 @@ import base64
 
 API_BASE = "http://127.0.0.1:5005"
 USERNAME = "admin"
-PASSWORD = "qqqppp@123"
+PASSWORD = "....@123"
 
 print("="*60)
 print("API AUTHENTICATION DEMO")
