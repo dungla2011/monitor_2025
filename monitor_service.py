@@ -590,7 +590,7 @@ def check_service(monitor_item):
     # Đặt giá trị mặc định cho check_interval_seconds nếu None hoặc 0
     check_interval = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
     
-    ol1(f"\nChecking: (ID: {monitor_item.id})", monitor_item)
+    ol1(f"=== Checking: (ID: {monitor_item.id})", monitor_item)
     ol1(f"Type: {monitor_item.type}", monitor_item)
     ol1(f"URL: {monitor_item.url_check}", monitor_item)
     ol1(f"Interval: {check_interval}s", monitor_item)
@@ -752,13 +752,12 @@ def monitor_service_thread(monitor_item):
     alert_manager = get_alert_manager(monitor_item.id)
     alert_manager.reset_consecutive_error()
     alert_manager.reset_webhook_flags()  # Reset webhook flags
-    
-    ol1(f"🚀[Thread {monitor_item.id}] Starting monitoring: {monitor_item.name}")
-    ol1(f"[Thread {monitor_item.id}] Interval: {check_interval} seconds")
-    ol1(f"[Thread {monitor_item.id}] Type: {monitor_item.type}")
-    ol1(f"[Thread {monitor_item.id}] Reset consecutive error counter")
-    ol1(f"[Thread {monitor_item.id}] config changes...")
-    
+
+    ol1(f"🚀[Thread {monitor_item.id}] Starting monitoring: {monitor_item.name}", monitorItem=monitor_item)
+    ol1(f"[Thread {monitor_item.id}] Interval: {check_interval} seconds", monitorItem=monitor_item)
+    ol1(f"[Thread {monitor_item.id}] Type: {monitor_item.type}", monitorItem=monitor_item)
+    ol1(f"[Thread {monitor_item.id}] Reset consecutive error counter", monitorItem=monitor_item)
+
     try:
         last_check_time = 0
         
@@ -769,8 +768,8 @@ def monitor_service_thread(monitor_item):
             if current_time - last_check_time >= check_interval:
                 check_count += 1
                 timestamp = datetime.now().strftime('%H:%M:%S')
-                ol1(f"\n📊 [Thread {monitor_item.id}] Check #{check_count} at {timestamp}")
-               
+                ol1(f"\n📊 [Thread {monitor_item.id}] Check #{check_count} at {timestamp}", monitorItem=monitor_item)
+
             #    Nếu có monitor_item.stopTo, và nếu stopTo > now thì không chạy check
                 # Handle stopTo - could be datetime, string, or invalid value
                 should_pause = False
@@ -1031,13 +1030,6 @@ def force_stop_monitor_thread(monitor_item):
 
             # Khong cho, thread stop hay khong khong quan trọng
 
-            # Chờ thread stop (timeout 10 giây)
-            # if thread_info['thread'].is_alive():
-            #     thread_info['thread'].join(timeout=10)
-            #     if thread_info['thread'].is_alive():
-            #         ol1(f"⚠️ [Main] Thread {item_id} did not stop within timeout (may need process restart)")
-            #     else:
-            #         ol1(f"✅ [Main] Thread {item_id} stopped successfully")
             
             return True
     return False
@@ -1129,31 +1121,31 @@ def main_manager_loop():
             # Tìm items cần stop (running nhưng không enabled trong DB)  
             items_to_stop = running_ids - enabled_ids
             
-            if cycle_count % 12 == 1:  # Print status every 60 seconds (12 * 5s)
-                ol1(f"\n📊 [Main Manager] Cycle #{cycle_count} at {timestamp}")
-                ol1(f"💾 DB Enabled: {len(enabled_ids)} items {list(enabled_ids)}")
-                ol1(f"🏃 Running: {len(running_ids)} threads {list(running_ids)}")
+            
+            ol1(f"\n📊 [Main Manager] Cycle #{cycle_count} at {timestamp}")
+            ol1(f"💾 DB Enabled: {len(enabled_ids)} items {list(enabled_ids)}")
+            ol1(f"🏃 Running: {len(running_ids)} threads {list(running_ids)}")
+            
+            # In thời gian bắt đầu của các running threads (chỉ trong status report)
+            for item_id, start_time in running_ids_and_start_time.items():
+                ol1(f"   🕒 Thread {item_id} started at {start_time}")
                 
-                # In thời gian bắt đầu của các running threads (chỉ trong status report)
-                for item_id, start_time in running_ids_and_start_time.items():
-                    ol1(f"   🕒 Thread {item_id} started at {start_time}")
-                    
-                if items_to_start:
-                    ol1(f"➕ Need to start: {list(items_to_start)}")
-                if items_to_stop:
-                    ol1(f"➖ Need to stop: {list(items_to_stop)}")
+            if items_to_start:
+                ol1(f"➕ Need to start: {list(items_to_start)}")
+            if items_to_stop:
+                ol1(f"➖ Need to stop: {list(items_to_stop)}")
             
             # Start new threads
             for item_id in items_to_start:
                 item = next((item for item in enabled_items if item.id == item_id), None)
                 if item:
                     start_monitor_thread(item)
-                    time.sleep(0.01)  # Small delay between starts
+                    time.sleep(0.001)  # Small delay between starts
             
             # Stop threads for disabled items với force stop
             for item_id in items_to_stop:
                 monitor_it = get_monitor_item_by_id(item_id)  # Just to log if item not found
-                force_stop_monitor_thread(item)
+                force_stop_monitor_thread(monitor_it)
             
             # Wait 5 seconds or until shutdown
             if shutdown_event.wait(timeout=5):
@@ -1171,15 +1163,7 @@ def main_manager_loop():
         with thread_lock:
             for item_id in running_threads.keys():
                 stop_flags[item_id] = True
-        
-        ol1("🛑 [Main Manager] Stopping all monitor threads...")
-        with thread_lock:
-            for item_id, thread_info in running_threads.items():
-                if thread_info['thread'].is_alive():
-                    ol1(f"⏳ Waiting for {thread_info['item'].name} (ID: {item_id}) to stop...")
-                    thread_info['thread'].join(timeout=10)
-        
-        ol1("✅ [Main Manager] All threads stopped. Manager shutdown complete.")
+       
 
 def get_all_enabled_monitor_items():
     """
