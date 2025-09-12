@@ -76,10 +76,33 @@ else:
     load_dotenv()
 
 # Now import modules that depend on environment variables
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy import text
-from db_connection import engine
-from models import MonitorItem, get_telegram_config_for_monitor_item, is_alert_time_allowed
+# NO SQLAlchemy imports needed for raw SQL approach
+# from sqlalchemy.orm import sessionmaker
+# from sqlalchemy import text
+# from db_connection import engine
+# Raw SQL helpers - NO SQLAlchemy ORM overhead
+from sql_helpers import (
+    get_enabled_items_raw,
+    get_monitor_item_by_id_raw, 
+    update_monitor_result_raw,
+    get_telegram_config_for_monitor_raw,
+    get_webhook_config_for_monitor_raw,
+    get_monitor_settings_for_user_raw,
+    get_monitor_stats_raw
+)
+
+# Keep models for schema definition only (không dùng cho queries)
+from models import MonitorItem, is_alert_time_allowed
+
+class MonitorItemDict:
+    """Convert dict to object-like access for backward compatibility"""
+    def __init__(self, data_dict):
+        self._data = data_dict
+        for key, value in data_dict.items():
+            setattr(self, key, value)
+    
+    def get(self, key, default=None):
+        return self._data.get(key, default)
 from telegram_helper import send_telegram_alert, send_telegram_recovery
 from webhook_helper import send_webhook_alert, send_webhook_recovery, get_webhook_config_for_monitor_item
 from single_instance_api import SingleInstanceManager, MonitorAPI, check_instance_and_get_status
@@ -123,8 +146,7 @@ def cleanup_alert_manager(thread_id):
         if thread_id in thread_alert_managers:
             del thread_alert_managers[thread_id]
 
-# Create session factory
-SessionLocal = sessionmaker(bind=engine)
+# Raw SQL approach - no need for SessionLocal
 
 # Flag để track cleanup đã chạy chưa
 cleanup_running = False
@@ -187,65 +209,47 @@ signal.signal(signal.SIGTERM, signal_handler)
 
 # === DATABASE OPERATIONS ===
 
-def get_db_session_main_thread(retry_delay=10):
+def test_db_connection_main_thread(retry_delay=10):
     """
-    DB session cho MAIN THREAD - retry vô hạn cho đến khi DB sống lại
-    Dùng cho main thread operations (startup, management, etc.)
+    Raw SQL: Test DB connection cho MAIN THREAD - retry vô hạn
     """
     attempt = 0
     while True:
         attempt += 1
         try:
-            session = SessionLocal()
-            # Test connection
-            session.execute(text("SELECT 1"))
+            from sql_helpers import get_raw_connection
+            conn = get_raw_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1")
+            cursor.close()
+            conn.close()
+            
             if attempt > 1:
                 ol1(f"✅ DATABASE RECOVERED after {attempt-1} failed attempts (main thread)")
-            return session
+            return True
         except Exception as e:
-            if session:
-                session.close()
-            
             ol1(f"⚠️ Main thread DB connection failed (attempt {attempt}): {e}")
             ol1(f"🔄 Main thread retrying in {retry_delay} seconds... (will retry forever)")
             time.sleep(retry_delay)
 
-def get_db_session_worker_thread():
+def test_db_connection_worker_thread():
     """
-    DB session cho WORKER THREAD - fail fast, không retry
-    Nếu DB lỗi thì raise exception để worker thread die
-    Main thread sẽ detect và restart worker thread
+    Raw SQL: Test DB connection cho WORKER THREAD - fail fast
     """
     try:
-        session = SessionLocal()
-        # Test connection
-        session.execute(text("SELECT 1"))
-        return session
+        from sql_helpers import get_raw_connection
+        conn = get_raw_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        cursor.close()
+        conn.close()
+        return True
     except Exception as e:
         ol1(f"💥 Worker thread DB connection failed: {e}")
         ol1(f"🔥 Worker thread will DIE - main thread will restart it")
         raise e  # Let worker thread die
 
-def execute_db_operation_main_thread(operation_func, operation_name="DB operation"):
-    """
-    DB operation cho MAIN THREAD - retry vô hạn
-    """
-    while True:
-        session = None
-        try:
-            session = get_db_session_main_thread()
-            result = operation_func(session)
-            session.close()
-            return result
-        except Exception as e:
-            if session:
-                try:
-                    session.rollback()
-                    session.close()
-                except:
-                    pass
-            ol1(f"⚠️ Main thread {operation_name} failed: {e}")
-            ol1(f"🔄 Main thread retrying {operation_name}...")
+# Raw SQL approach - no need for execute_db_operation_main_thread
 
 def execute_db_operation_worker_thread(operation_func, operation_name="DB operation"):
     """
@@ -271,50 +275,46 @@ def execute_db_operation_worker_thread(operation_func, operation_name="DB operat
 
 def get_all_monitor_items_main_thread(chunk_info=None):
     """
-    Lấy tất cả monitor items - cho MAIN THREAD (retry vô hạn)
+    Raw SQL: Lấy tất cả monitor items - cho MAIN THREAD (retry vô hạn)
     """
-    def db_operation(session):
-        query = session.query(MonitorItem).filter(
-            MonitorItem.url_check.isnot(None),
-            MonitorItem.url_check != '',
-            MonitorItem.enable == 1  # PostgreSQL compatible: 1 instead of True
-        )
+    try:
+        all_items_raw = get_enabled_items_raw()
         
         if chunk_info:
-            items = query.offset(chunk_info['offset']).limit(chunk_info['limit']).all()
-            ol1(f"📊 Retrieved chunk #{chunk_info['number']}: {len(items)} items (offset: {chunk_info['offset']}, limit: {chunk_info['limit']})")
+            offset = chunk_info['offset']
+            limit = chunk_info['limit']
+            items_raw = all_items_raw[offset:offset + limit]
+            ol1(f"📊 Retrieved chunk #{chunk_info['number']}: {len(items_raw)} items (offset: {offset}, limit: {limit})")
         else:
-            items = query.all()
-            ol1(f"📊 Retrieved {len(items)} enabled items from DB")
+            items_raw = all_items_raw
+            ol1(f"📊 Retrieved {len(items_raw)} enabled items from DB")
         
+        # Convert to object-like
+        items = [MonitorItemDict(item_dict) for item_dict in items_raw]
         return items
-    
-    return execute_db_operation_main_thread(db_operation, "Get all monitor items (main thread)")
+    except Exception as e:
+        ol1(f"❌ Error getting monitor items: {e}")
+        return []
 
 def safe_update_monitor_item_worker_thread(monitor_item):
     """
-    Update monitor item - cho WORKER THREAD (fail fast)
+    Raw SQL: Update monitor item - cho WORKER THREAD (fail fast)
     Nếu DB lỗi thì worker thread sẽ die
     """
-    def db_operation(session):
-        db_item = session.query(MonitorItem).filter(MonitorItem.id == monitor_item.id).first()
-        if db_item:
-            db_item.last_check_status = monitor_item.last_check_status
-            db_item.last_check_time = datetime.now()
-            # Update counters if changed
-            if hasattr(monitor_item, 'count_online') and monitor_item.count_online is not None:
-                db_item.count_online = monitor_item.count_online
-            if hasattr(monitor_item, 'count_offline') and monitor_item.count_offline is not None:
-                db_item.count_offline = monitor_item.count_offline
-            session.commit()
-            return True
-        return False
-    
     try:
-        return execute_db_operation_worker_thread(db_operation, f"Update monitor item {monitor_item.id} (worker thread)")
+        # Determine status and messages
+        status = monitor_item['last_check_status'] if isinstance(monitor_item, dict) else monitor_item.last_check_status
+        error_msg = monitor_item.get('result_error') if isinstance(monitor_item, dict) else getattr(monitor_item, 'result_error', None)
+        valid_msg = monitor_item.get('result_valid') if isinstance(monitor_item, dict) else getattr(monitor_item, 'result_valid', None)
+        item_id = monitor_item['id'] if isinstance(monitor_item, dict) else monitor_item.id
+        
+        # Raw SQL update
+        update_monitor_result_raw(item_id, status, error_msg, valid_msg)
+        return True
+        
     except Exception as e:
-        ol1(f"💥 Worker thread failed to update monitor item {monitor_item.id}: {e}", monitor_item)
-        ol1(f"🔥 This worker thread will die now!", monitor_item)
+        ol1(f"💥 Worker thread failed to update monitor item {item_id}: {e}")
+        ol1(f"🔥 This worker thread will die now!")
         raise e  # Let worker thread die
 
 def start_api_server():
@@ -424,7 +424,7 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
             ol1(f"✅ [Thread {thread_id}] Alert allowed for user {user_id}: {reason}", monitor_item)
 
         # Lấy config Telegram
-        telegram_config = get_telegram_config_for_monitor_item(monitor_item.id)
+        telegram_config = get_telegram_config_for_monitor_raw(monitor_item.id)
         
         if not telegram_config:
             # Fallback to .env config
@@ -504,7 +504,7 @@ def send_webhook_notification(monitor_item, is_error=True, error_message="", res
         alert_manager = get_alert_manager(thread_id)
         
         # Lấy webhook config
-        webhook_config = get_webhook_config_for_monitor_item(monitor_item.id)
+        webhook_config = get_webhook_config_for_monitor_raw(monitor_item.id)
         if not webhook_config:
             return  # Không có webhook config
         
@@ -645,13 +645,13 @@ def check_service(monitor_item):
 
 def get_monitor_item_by_id(item_id):
     """
-    Lấy monitor item từ database theo ID - worker thread version (fail fast)
+    Raw SQL: Lấy monitor item từ database theo ID - worker thread version (fail fast)
     """
-    def db_operation(session):
-        return session.query(MonitorItem).filter(MonitorItem.id == item_id).first()
-    
     try:
-        return execute_db_operation_worker_thread(db_operation, f"Get monitor item {item_id} (worker thread)")
+        item_dict = get_monitor_item_by_id_raw(item_id)
+        if item_dict:
+            return MonitorItemDict(item_dict)  # Convert to object-like
+        return None
     except Exception as e:
         ol1(f"💥 Worker thread failed to get monitor item {item_id}: {e}", item_id)
         ol1(f"🔥 This worker thread will die now!", item_id)
@@ -659,27 +659,23 @@ def get_monitor_item_by_id(item_id):
 
 def update_monitor_item(monitor_item):
     """
-    Cập nhật monitor item vào database
+    Raw SQL: Cập nhật monitor item vào database
     
     Args:
-        monitor_item: MonitorItem object đã được modify
+        monitor_item: MonitorItem dict hoặc object đã được modify
     """
     try:
-        session = SessionLocal()
-        # Lấy item từ DB và cập nhật
-        db_item = session.query(MonitorItem).filter(MonitorItem.id == monitor_item.id).first()
-        if db_item:
-            db_item.last_check_status = monitor_item.last_check_status
-            db_item.last_check_time = datetime.now()
-            # Cập nhật counter nếu có thay đổi
-            if hasattr(monitor_item, 'count_online') and monitor_item.count_online is not None:
-                db_item.count_online = monitor_item.count_online
-            if hasattr(monitor_item, 'count_offline') and monitor_item.count_offline is not None:
-                db_item.count_offline = monitor_item.count_offline
-            session.commit()
-        session.close()
+        # Extract values
+        status = monitor_item['last_check_status'] if isinstance(monitor_item, dict) else monitor_item.last_check_status
+        error_msg = monitor_item.get('result_error') if isinstance(monitor_item, dict) else getattr(monitor_item, 'result_error', None)
+        valid_msg = monitor_item.get('result_valid') if isinstance(monitor_item, dict) else getattr(monitor_item, 'result_valid', None)
+        item_id = monitor_item['id'] if isinstance(monitor_item, dict) else monitor_item.id
+        
+        # Raw SQL update
+        update_monitor_result_raw(item_id, status, error_msg, valid_msg)
+        
     except Exception as e:
-        ol1(f"❌ Error updating monitor item {monitor_item.id}: {e}")
+        ol1(f"❌ Error updating monitor item {item_id}: {e}")
         raise
 
 def compare_monitor_item_fields(original_item, current_item):
@@ -776,7 +772,27 @@ def monitor_service_thread(monitor_item):
                 ol1(f"\n📊 [Thread {monitor_item.id}] Check #{check_count} at {timestamp}")
                
             #    Nếu có monitor_item.stopTo, và nếu stopTo > now thì không chạy check
-                if monitor_item.stopTo and monitor_item.stopTo > datetime.now():
+                # Handle stopTo - could be datetime, string, or invalid value
+                should_pause = False
+                if monitor_item.stopTo:
+                    try:
+                        # Skip if stopTo is just the column name (invalid data)
+                        if isinstance(monitor_item.stopTo, str) and monitor_item.stopTo.lower() in ['stopto', 'null', '']:
+                            # Invalid stopTo value, ignore pause
+                            pass
+                        elif isinstance(monitor_item.stopTo, str):
+                            from dateutil import parser
+                            stop_time = parser.parse(monitor_item.stopTo)
+                            if stop_time > datetime.now():
+                                should_pause = True
+                        elif hasattr(monitor_item.stopTo, 'year'):  # datetime object
+                            if monitor_item.stopTo > datetime.now():
+                                should_pause = True
+                    except Exception as e:
+                        # Silently ignore parsing errors for invalid stopTo values
+                        pass
+                
+                if should_pause:
                     ol1(f"⏸️ [Thread {monitor_item.id}] Monitor is paused until {monitor_item.stopTo}. Skipping check.")
                 else:
                     # Kiểm tra dịch vụ với log đầy đủ
@@ -909,42 +925,36 @@ def show_thread_status():
 
 def get_enabled_items_from_db():
     """
-    Lấy enabled monitor items từ database với chunk support
-    Sử dụng CHUNK_INFO để lấy theo phần
+    Raw SQL: Lấy enabled monitor items từ database với chunk support
+    Sử dụng CHUNK_INFO để lấy theo phần - NO SQLAlchemy overhead
     """
     try:
-        session = SessionLocal()
-        
-        # Base query
-        query = session.query(MonitorItem).filter(
-            MonitorItem.url_check.isnot(None),
-            MonitorItem.url_check != '',
-            MonitorItem.enable == 1  # PostgreSQL compatible: 1 instead of True
-        ).order_by(MonitorItem.id)  # Đảm bảo thứ tự consistent
-        
-        # Apply chunk nếu có
+        # Get all enabled items using raw SQL
         if CHUNK_INFO:
+            # TODO: Implement chunking in raw SQL nếu cần
+            # Hiện tại get all trước, sau này có thể optimize
+            all_items_raw = get_enabled_items_raw()
+            
             offset = CHUNK_INFO['offset']
             limit = CHUNK_INFO['limit']
             
-            # Get total count first
-            total_count = query.count()
-            ol1(f"📊 Total enabled items in DB: {total_count}")
+            ol1(f"📊 Total enabled items in DB: {len(all_items_raw)}")
             
-            # Apply offset and limit
-            items = query.offset(offset).limit(limit).all()
+            # Apply chunking in Python
+            items_raw = all_items_raw[offset:offset + limit]
             
-            ol1(f"📦 Chunk #{CHUNK_INFO['number']}: Got {len(items)} items "
+            ol1(f"📦 Chunk #{CHUNK_INFO['number']}: Got {len(items_raw)} items "
                 f"(offset: {offset}, limit: {limit})")
             
-            if len(items) == 0:
+            if len(items_raw) == 0:
                 ol1(f"⚠️  Chunk #{CHUNK_INFO['number']} is empty - no more items at offset {offset}")
         else:
             # No chunk - get all enabled items
-            items = query.all()
-            # ol1(f"📊 Got {len(items)} enabled items (no chunk mode)")
+            items_raw = get_enabled_items_raw()
+            # ol1(f"📊 Got {len(items_raw)} enabled items (no chunk mode)")
         
-        session.close()
+        # Convert dict to object-like for backward compatibility
+        items = [MonitorItemDict(item_dict) for item_dict in items_raw]
         return items
         
     except Exception as e:
@@ -1176,14 +1186,8 @@ def get_all_enabled_monitor_items():
     Lấy tất cả monitor items đang enabled
     """
     try:
-        session = SessionLocal()
-        items = session.query(MonitorItem).filter(
-            MonitorItem.url_check.isnot(None),
-            MonitorItem.url_check != '',
-            MonitorItem.enable == 1  # PostgreSQL compatible: 1 instead of True
-        ).all()
-        session.close()
-        return items
+        items_raw = get_enabled_items_raw()
+        return [MonitorItemDict(item_dict) for item_dict in items_raw]
     except Exception as e:
         ol1(f"❌ Error getting enabled monitor items: {e}")
         return []

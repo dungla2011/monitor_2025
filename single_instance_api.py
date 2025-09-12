@@ -433,12 +433,12 @@ class MonitorAPI:
                         'url_check': item.url_check,
                         'enabled': bool(item.enable),
                         'last_status': item.last_check_status,
-                        'last_check_time': item.last_check_time.isoformat() if item.last_check_time else None,
+                        'last_check_time': item.last_check_time.isoformat() if (item.last_check_time and hasattr(item.last_check_time, 'isoformat')) else str(item.last_check_time) if item.last_check_time else None,
                         'time_range_seconds': item.check_interval_seconds,
                         'user_id': item.user_id,
                         'consecutive_errors': self.thread_alert_managers.get(thread_id, type('obj', (object,), {'get_consecutive_error_count': lambda: 0})).get_consecutive_error_count(),
                         'is_thread_running': thread_id in self.running_threads,
-                        'stop_to': item.stopTo.isoformat() if item.stopTo else None,
+                        'stop_to': item.stopTo.isoformat() if (item.stopTo and hasattr(item.stopTo, 'isoformat')) else str(item.stopTo) if item.stopTo else None,
                         'count_online': item.count_online or 0,
                         'count_offline': item.count_offline or 0
                     })
