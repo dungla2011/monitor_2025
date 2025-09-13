@@ -128,6 +128,21 @@ def ol1(msg, monitorItem=None):
     with _logging_lock:
         print(msg)
 
+    # Nếu monitorItem có .id hoặc [id] thì lấy ID
+    monitor_id = None
+    if monitorItem is not None:
+        if hasattr(monitorItem, 'id'):
+            monitor_id = monitorItem.id
+        elif isinstance(monitorItem, dict) and 'id' in monitorItem:
+            monitor_id = monitorItem['id']
+
+    user_id = None
+    if monitorItem is not None:
+        if hasattr(monitorItem, 'user_id'):
+            user_id = monitorItem.user_id
+        elif isinstance(monitorItem, dict) and 'user_id' in monitorItem:
+            user_id = monitorItem['user_id']
+
     # Tạo folder logs nếu chưa có
     if not os.path.exists('logs'):
         os.makedirs('logs')
@@ -140,12 +155,12 @@ def ol1(msg, monitorItem=None):
 
         if monitorItem is not None:
             # Log file theo monitor ID
-            log_files.append(os.getenv('LOG_FILE', f'logs/log_{monitorItem.id}.txt'))
+            log_files.append(os.getenv('LOG_FILE', f'logs/log_{monitor_id}.txt'))
 
-            padIdItem = f"ID:{monitorItem.id} "
+            padIdItem = f"ID:{monitor_id} "
             # Nếu có user_id thì ghi thêm vào file log theo user
-            if hasattr(monitorItem, 'user_id') and monitorItem.user_id is not None:
-                log_files.append(f'logs/log_user_{monitorItem.user_id}.txt')
+            if user_id is not None:
+                log_files.append(f'logs/log_user_{user_id}.txt')
         else:
             # Main log file
             log_files.append(os.getenv('LOG_FILE', 'logs/log_main.txt'))

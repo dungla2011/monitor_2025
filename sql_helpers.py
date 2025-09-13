@@ -134,6 +134,66 @@ def get_enabled_items_raw():
             conn.close()
         raise e
 
+def get_all_items_raw():
+    """
+    Raw SQL: Lấy TẤT CẢ monitor items (enabled + disabled) cho complete cache
+    
+    Returns:
+        list: Danh sách dict objects giống ORM (bao gồm cả disabled items)
+    """
+    conn = None
+    cursor = None
+    try:
+        conn = get_raw_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT id, name, url_check, enable, type, check_interval_seconds,
+                   user_id, last_check_status, count_online, count_offline,
+                   last_check_time, result_valid, result_error, "maxAlertCount",
+                   "stopTo", "forceRestart"
+            FROM monitor_items 
+            WHERE url_check IS NOT NULL 
+            AND url_check != '' 
+            AND deleted_at IS NULL
+            ORDER BY id
+        """)
+        
+        rows = cursor.fetchall()
+        
+        # Convert to dict objects (giống ORM objects)
+        items = []
+        for row in rows:
+            items.append({
+                'id': row[0],
+                'name': row[1], 
+                'url_check': row[2],
+                'enable': row[3],
+                'type': row[4],
+                'check_interval_seconds': row[5],
+                'user_id': row[6],
+                'last_check_status': row[7],
+                'count_online': row[8],
+                'count_offline': row[9],
+                'last_check_time': row[10],
+                'result_valid': row[11],
+                'result_error': row[12],
+                'maxAlertCount': row[13],
+                'stopTo': row[14],
+                'forceRestart': row[15]
+            })
+            
+        cursor.close()
+        conn.close()
+        return items
+        
+    except Exception as e:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+        raise e
+
 def get_monitor_item_by_id_raw(monitor_id):
     """
     Raw SQL: Lấy một monitor item theo ID

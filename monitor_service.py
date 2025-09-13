@@ -83,6 +83,7 @@ else:
 # Raw SQL helpers - NO SQLAlchemy ORM overhead
 from sql_helpers import (
     get_enabled_items_raw,
+    get_all_items_raw,
     get_monitor_item_by_id_raw, 
     update_monitor_result_raw,
     get_telegram_config_for_monitor_raw,
@@ -127,6 +128,85 @@ TELEGRAM_THROTTLE_SECONDS = safe_get_env_int('TELEGRAM_THROTTLE_SECONDS', 30)  #
 CONSECUTIVE_ERROR_THRESHOLD = safe_get_env_int('CONSECUTIVE_ERROR_THRESHOLD', 10)  # Ngưỡng lỗi liên tiếp để giãn alert
 EXTENDED_ALERT_INTERVAL_MINUTES = safe_get_env_int('EXTENDED_ALERT_INTERVAL_MINUTES', 5)  # Số phút giãn alert sau khi quá ngưỡng (0 = không giãn)
 
+# ===== CACHE SYSTEM FOR MONITOR ITEMS =====
+# Global cache for monitor items to reduce DB queries from 1000/sec to 1/sec
+all_monitor_items = {}  # {item_id: MonitorItemDict}
+all_monitor_items_index = {}  # {item_id: MonitorItemDict} - same as above for fast lookup
+last_get_all_monitor_items = 0  # Unix timestamp
+cache_thread = None
+cache_lock = threading.Lock()
+CACHE_REFRESH_INTERVAL = 1  # seconds - cache refresh every 1 second
+CACHE_EXPIRY_SECONDS = 5  # seconds - cache considered fresh for 5 seconds
+
+
+# ===== CACHE SYSTEM FUNCTIONS =====
+
+def cache_refresh_thread():
+    """
+    Background thread để refresh cache monitor items mỗi 1 giây
+    Giảm DB queries từ 3000 threads × 1 query/3s = 1000 queries/sec xuống 1 query/sec
+    """
+    global all_monitor_items, all_monitor_items_index, last_get_all_monitor_items
+    
+    thread_name = "CacheRefresh"
+    threading.current_thread().name = thread_name
+    
+    ol1(f"🗄️ [Cache] Starting cache refresh thread (interval: {CACHE_REFRESH_INTERVAL}s)")
+    
+    while not shutdown_event.is_set():
+        try:
+            # Load ALL monitor items from DB using raw SQL (enabled + disabled)
+            from sql_helpers import get_all_items_raw
+            all_items_raw = get_all_items_raw()
+            
+            # Convert to indexed dictionary for O(1) lookup
+            new_cache = {}
+            for item_dict in all_items_raw:
+                item_obj = MonitorItemDict(item_dict)
+                new_cache[item_obj.id] = item_obj
+            
+            # Update cache atomically
+            with cache_lock:
+                all_monitor_items = new_cache
+                all_monitor_items_index = new_cache  # Same reference for fast lookup
+                last_get_all_monitor_items = time.time()
+            
+            # Log cache stats periodically (every 10 refreshes = 10 seconds)
+            if int(time.time()) % 10 == 0:
+                enabled_count = len([item for item in new_cache.values() if item.enable])
+                disabled_count = len(new_cache) - enabled_count
+                ol1(f"🗄️ [Cache] Refreshed: {len(new_cache)} total items ({enabled_count} enabled, {disabled_count} disabled)")
+            
+        except Exception as e:
+            ol1(f"❌ [Cache] Error refreshing cache: {e}")
+            # Don't break the loop - keep trying
+        
+        # Wait 1 second or until shutdown
+        if shutdown_event.wait(timeout=CACHE_REFRESH_INTERVAL):
+            break
+    
+    ol1(f"🗄️ [Cache] Cache refresh thread stopped")
+
+def start_cache_thread():
+    """
+    Start cache refresh thread
+    """
+    global cache_thread
+    
+    if cache_thread and cache_thread.is_alive():
+        ol1("⚠️ [Cache] Cache thread already running")
+        return
+    
+    cache_thread = threading.Thread(
+        target=cache_refresh_thread,
+        name="CacheRefresh",
+        daemon=True
+    )
+    cache_thread.start()
+    
+    # Wait a moment for initial cache load
+    time.sleep(1.5)  # Give time for first cache load
+    ol1(f"✅ [Cache] Cache refresh thread started")
 
 def get_alert_manager(thread_id):
     """
@@ -153,7 +233,7 @@ cleanup_running = False
 
 def cleanup_on_exit():
     """Cleanup function khi thoát"""
-    global instance_manager, cleanup_running
+    global instance_manager, cleanup_running, cache_thread
     
     if cleanup_running:
         return  # Tránh cleanup nhiều lần
@@ -164,7 +244,14 @@ def cleanup_on_exit():
     # Signal all threads to stop
     shutdown_event.set()
     
-    # Wait for threads to finish (with timeout)
+    # Wait for cache thread to stop
+    if cache_thread and cache_thread.is_alive():
+        ol1("⏳ Waiting for cache thread to stop...")
+        cache_thread.join(timeout=2)
+        if cache_thread.is_alive():
+            ol1("⚠️ Cache thread still running after timeout")
+    
+    # Wait for monitor threads to finish (with timeout)
     with thread_lock:
         for thread_id, thread_info in list(running_threads.items()):
             try:
@@ -254,20 +341,12 @@ def test_db_connection_worker_thread():
 def execute_db_operation_worker_thread(operation_func, operation_name="DB operation"):
     """
     DB operation cho WORKER THREAD - fail fast, không retry
+    Raw SQL approach - không cần session management
     """
-    session = None
     try:
-        session = get_db_session_worker_thread()
-        result = operation_func(session)
-        session.close()
+        result = operation_func()
         return result
     except Exception as e:
-        if session:
-            try:
-                session.rollback()
-                session.close()
-            except:
-                pass
         ol1(f"💥 Worker thread {operation_name} failed: {e}")
         raise e  # Let worker thread die
 
@@ -313,8 +392,8 @@ def safe_update_monitor_item_worker_thread(monitor_item):
         return True
         
     except Exception as e:
-        ol1(f"💥 Worker thread failed to update monitor item {item_id}: {e}")
-        ol1(f"🔥 This worker thread will die now!")
+        ol1(f"💥 Worker thread failed to update monitor item {item_id}: {e}", monitorItem=monitor_item)
+        ol1(f"🔥 This worker thread will die now!", monitorItem=monitor_item)
         raise e  # Let worker thread die
 
 def start_api_server():
@@ -645,12 +724,35 @@ def check_service(monitor_item):
 
 def get_monitor_item_by_id(item_id):
     """
-    Raw SQL: Lấy monitor item từ database theo ID - worker thread version (fail fast)
+    Optimized: Get monitor item by ID from cache first, fallback to DB
+    Giảm DB queries từ mỗi thread query DB → chỉ 1 cache lookup
     """
+    global all_monitor_items, last_get_all_monitor_items
+    
+    current_time = time.time()
+    
+    # Try cache first if it's fresh (within 5 seconds)
+    with cache_lock:
+        cache_age = current_time - last_get_all_monitor_items
+        
+        if cache_age <= CACHE_EXPIRY_SECONDS and item_id in all_monitor_items:
+            item = all_monitor_items[item_id]
+            ol1(f"✅ Cache hit for item {item_id}", item)
+            # Cache hit - return cached item
+            return item
+
+    # Cache miss or expired - fallback to DB (fail fast for worker threads)
     try:
+        ol1(f"✅ NOT Cache hit for {item_id}, so Get From DB ", item)
         item_dict = get_monitor_item_by_id_raw(item_id)
         if item_dict:
-            return MonitorItemDict(item_dict)  # Convert to object-like
+            item_obj = MonitorItemDict(item_dict)
+            
+            # Update cache with this item
+            with cache_lock:
+                all_monitor_items[item_id] = item_obj
+            
+            return item_obj
         return None
     except Exception as e:
         ol1(f"💥 Worker thread failed to get monitor item {item_id}: {e}", item_id)
@@ -742,9 +844,7 @@ def monitor_service_thread(monitor_item):
     original_item.stopTo = monitor_item.stopTo
     original_item.forceRestart = monitor_item.forceRestart
     original_item.last_check_status = monitor_item.last_check_status
-    
-    check_interval_org = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
-
+   
     check_interval = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
     check_count = 0
     
@@ -768,7 +868,7 @@ def monitor_service_thread(monitor_item):
             if current_time - last_check_time >= check_interval:
                 check_count += 1
                 timestamp = datetime.now().strftime('%H:%M:%S')
-                ol1(f"\n📊 [Thread {monitor_item.id}] Check #{check_count} at {timestamp}", monitorItem=monitor_item)
+                ol1(f"📊 - [Thread {monitor_item.id}] Check #{check_count} at {timestamp}", monitorItem=monitor_item)
 
             #    Nếu có monitor_item.stopTo, và nếu stopTo > now thì không chạy check
                 # Handle stopTo - could be datetime, string, or invalid value
@@ -852,7 +952,7 @@ def monitor_service_thread(monitor_item):
                     # Hiển thị kết quả ngắn gọn
                     status = "✅ SUCCESS" if result['success'] else "❌ FAILED"
                     response_time_str = f"{result['response_time']:.2f}ms" if result['response_time'] else "N/A"
-                    ol1(f"[Thread {monitor_item.id}] {status} | {response_time_str} | {monitor_item.name} ({monitor_item.type})")
+                    ol1(f"[Thread {monitor_item.id}] {status} | {response_time_str} | {monitor_item.name} ({monitor_item.type})", monitorItem=monitor_item)
                 
                 last_check_time = current_time
             
@@ -862,14 +962,14 @@ def monitor_service_thread(monitor_item):
                 
             # Kiểm tra stop flag riêng cho thread này
             if stop_flags.get(monitor_item.id, False):
-                ol1(f"\n🛑 [Thread {monitor_item.id}] Received stop signal from MainThread")
+                ol1(f"\n🛑 [Thread {monitor_item.id}] Received stop signal from MainThread", monitorItem=monitor_item)
                 break
             
             # Lấy item hiện tại từ database để so sánh
             current_item = get_monitor_item_by_id(monitor_item.id)
             
             if not current_item:
-                ol1(f"\n🛑 [Thread {monitor_item.id}] Item not found in database. Stopping {monitor_item.name} after {check_count} checks.")
+                ol1(f"\n🛑 [Thread {monitor_item.id}] Item not found in database. Stopping {monitor_item.name} after {check_count} checks.", monitorItem=monitor_item)
                 break
             
             # So sánh các trường quan trọng
@@ -924,42 +1024,55 @@ def show_thread_status():
 
 def get_enabled_items_from_db():
     """
-    Raw SQL: Lấy enabled monitor items từ database với chunk support
-    Sử dụng CHUNK_INFO để lấy theo phần - NO SQLAlchemy overhead
+    Optimized: Get enabled items from cache first, fallback to DB
+    Giảm DB queries từ mỗi 5s main loop query → chỉ memory access
     """
+    global all_monitor_items, last_get_all_monitor_items
+    
+    current_time = time.time()
+    
+    # Try cache first if it's fresh
+    with cache_lock:
+        cache_age = current_time - last_get_all_monitor_items
+        
+        if cache_age <= CACHE_EXPIRY_SECONDS and all_monitor_items:
+            # Cache hit - filter enabled items
+            enabled_items = [item for item in all_monitor_items.values() if item.enable]
+            
+            # Apply chunking if needed
+            if CHUNK_INFO:
+                offset = CHUNK_INFO['offset']
+                limit = CHUNK_INFO['limit']
+                chunk_items = enabled_items[offset:offset + limit]
+                return chunk_items
+            
+            return enabled_items
+    
+    # Cache miss or expired - fallback to original DB logic
     try:
-        # Get all enabled items using raw SQL
         if CHUNK_INFO:
-            # TODO: Implement chunking in raw SQL nếu cần
-            # Hiện tại get all trước, sau này có thể optimize
             all_items_raw = get_enabled_items_raw()
             
             offset = CHUNK_INFO['offset']
             limit = CHUNK_INFO['limit']
             
-            ol1(f"📊 Total enabled items in DB: {len(all_items_raw)}")
+            ol1(f"📊 [DB Fallback] Total enabled items in DB: {len(all_items_raw)}")
             
-            # Apply chunking in Python
+            # Apply chunking
             items_raw = all_items_raw[offset:offset + limit]
             
-            ol1(f"📦 Chunk #{CHUNK_INFO['number']}: Got {len(items_raw)} items "
+            ol1(f"📦 [DB Fallback] Chunk #{CHUNK_INFO['number']}: Got {len(items_raw)} items "
                 f"(offset: {offset}, limit: {limit})")
-            
-            if len(items_raw) == 0:
-                ol1(f"⚠️  Chunk #{CHUNK_INFO['number']} is empty - no more items at offset {offset}")
         else:
             # No chunk - get all enabled items
             items_raw = get_enabled_items_raw()
-            # ol1(f"📊 Got {len(items_raw)} enabled items (no chunk mode)")
         
-        # Convert dict to object-like for backward compatibility
+        # Convert to objects
         items = [MonitorItemDict(item_dict) for item_dict in items_raw]
         return items
         
     except Exception as e:
-        ol1(f"❌ Error getting enabled items: {e}")
-        # import traceback
-        # ol1(f"❌ Traceback: {traceback.format_exc()}")
+        ol1(f"❌ [DB Fallback] Error getting enabled items: {e}")
         return []
 
 def get_running_item_ids():
@@ -1241,7 +1354,7 @@ def main():
                 print("❌ Failed to create lock file. Exiting.")
                 return
                 
-            ol1("🚀 Starting Monitor Service with HTTP API...")
+            ol1("🚀 Starting Monitor Service with Cache + HTTP API...")
             ol1(f"🔒 Instance locked (PID: {os.getpid()})")
             
             # Show chunk info if using chunk mode
@@ -1252,6 +1365,10 @@ def main():
                     f"to {CHUNK_INFO['offset']+CHUNK_INFO['size']}")
             else:
                 ol1("📊 FULL MODE: Processing all enabled monitor items")
+            
+            # Start cache refresh thread FIRST (reduces DB load from 1000 queries/sec to 1 query/sec)
+            start_cache_thread()
+            ol1("✅ Cache system initialized - DB queries reduced by 99.9%")
             
             # Start HTTP API server in background thread
             api_thread = threading.Thread(target=start_api_server, daemon=True)
