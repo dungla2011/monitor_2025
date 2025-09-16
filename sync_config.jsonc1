@@ -57,11 +57,11 @@
     "103_235": {
         // Production environment
         "type": "sftp",
-        "host": "103.163.216.235",
+        "host": "10.0.0.19",
         "port": 22,
         // "proxy": true,
         "username": "root",
-        "password": "qqqppp@12ppp",
+        "password": "11111111",
         // "privateKeyPath": "/your_path/id_rsa",
         "upload_on_save": true,
         "watch": false,

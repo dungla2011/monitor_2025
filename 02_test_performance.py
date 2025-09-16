@@ -5,7 +5,7 @@ Kiểm tra hiệu suất và stress test của monitoring system
 """
 
 import os
-import sys
+import sys  
 import time
 import requests
 import threading

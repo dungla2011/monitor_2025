@@ -134,9 +134,12 @@ def get_enabled_items_raw():
             conn.close()
         raise e
 
-def get_all_items_raw():
+def get_all_items_raw(limit=None):
     """
     Raw SQL: Lấy TẤT CẢ monitor items (enabled + disabled) cho complete cache
+    
+    Args:
+        limit (int, optional): Giới hạn số lượng items tối đa
     
     Returns:
         list: Danh sách dict objects giống ORM (bao gồm cả disabled items)
@@ -147,7 +150,8 @@ def get_all_items_raw():
         conn = get_raw_connection()
         cursor = conn.cursor()
         
-        cursor.execute("""
+        # Build SQL query with optional LIMIT
+        sql = """
             SELECT id, name, url_check, enable, type, check_interval_seconds,
                    user_id, last_check_status, count_online, count_offline,
                    last_check_time, result_valid, result_error, "maxAlertCount",
@@ -157,7 +161,12 @@ def get_all_items_raw():
             AND url_check != '' 
             AND deleted_at IS NULL
             ORDER BY id
-        """)
+        """
+        
+        if limit is not None:
+            sql += f" LIMIT {limit}"
+        
+        cursor.execute(sql)
         
         rows = cursor.fetchall()
         

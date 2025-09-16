@@ -38,6 +38,8 @@ class LocalDatabaseCreator:
         self.errors = []
         self.warnings = []
         self.successes = []
+
+        print(f"🧪 Starting Local Database Creation Test, connection string: {self.local_db_connection_string}")
         
     def log_error(self, message):
         """Log error và add vào errors list"""

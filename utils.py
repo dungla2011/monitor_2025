@@ -116,7 +116,7 @@ class class_send_alert_of_thread:
             self.thread_webhook_recovery_sent = False
 
 
-def ol1(msg, monitorItem=None):
+def ol1(msg, monitorItem=None, newLine=False):
     """
     Output Log function - Ghi log ra console và file (Thread-safe)
     
@@ -131,13 +131,18 @@ def ol1(msg, monitorItem=None):
     # Nếu monitorItem có .id hoặc [id] thì lấy ID
     monitor_id = None
     if monitorItem is not None:
+        # Neu monitorItem = int thì coi như ID
+        if isinstance(monitorItem, int):
+            monitor_id = monitorItem
         if hasattr(monitorItem, 'id'):
             monitor_id = monitorItem.id
         elif isinstance(monitorItem, dict) and 'id' in monitorItem:
             monitor_id = monitorItem['id']
 
     user_id = None
-    if monitorItem is not None:
+    # neu monitorItem khong phai Int
+    
+    if monitorItem is not None and not isinstance(monitorItem, int):
         if hasattr(monitorItem, 'user_id'):
             user_id = monitorItem.user_id
         elif isinstance(monitorItem, dict) and 'user_id' in monitorItem:
@@ -173,6 +178,8 @@ def ol1(msg, monitorItem=None):
         
         for log_file in log_files:
             with open(log_file, "a", encoding="utf-8") as f:
+                if newLine:
+                    f.write("\n")
                 f.write(log_line)
     except Exception as e:
         # Tránh lỗi khi file không thể write (file busy, permission, etc.)
@@ -404,3 +411,74 @@ def format_counter_display(online_count, offline_count):
 
 # Import regex nếu chưa có
 import re
+
+
+def olerror(msg, monitorItem=None):
+    """
+    Output Log Error function - Ghi log lỗi ra file logs/log.error (Thread-safe)
+    
+    Args:
+        msg (str): Thông điệp lỗi cần log
+        monitorItem (object, optional): Monitor object để lấy ID và user_id
+    """
+    # Thread-safe console output
+    with _logging_lock:
+        print(f"❌ ERROR: {msg}")
+
+    # Nếu monitorItem có .id hoặc [id] thì lấy ID
+    monitor_id = None
+    if monitorItem is not None:
+        # Neu monitorItem = int thì coi như ID
+        if isinstance(monitorItem, int):
+            monitor_id = monitorItem
+        if hasattr(monitorItem, 'id'):
+            monitor_id = monitorItem.id
+        elif isinstance(monitorItem, dict) and 'id' in monitorItem:
+            monitor_id = monitorItem['id']
+
+    user_id = None
+    # neu monitorItem khong phai Int
+    if monitorItem is not None and not isinstance(monitorItem, int):
+        if hasattr(monitorItem, 'user_id'):
+            user_id = monitorItem.user_id
+        elif isinstance(monitorItem, dict) and 'user_id' in monitorItem:
+            user_id = monitorItem['user_id']
+
+    # Tạo folder logs nếu chưa có
+    if not os.path.exists('logs'):
+        os.makedirs('logs')
+
+    # Ghi log lỗi ra file với utf-8 encoding - Thread-safe approach:
+    try:
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        
+        # Thông tin monitor ID nếu có
+        monitor_info = ""
+        if monitor_id is not None:
+            monitor_info = f"ID:{monitor_id} "
+            if user_id is not None:
+                monitor_info += f"USER:{user_id} "
+        
+        log_line = f"{timestamp}# {monitor_info}ERROR: {msg}\n"
+        
+        # Ghi vào file log.error chính
+        error_log_file = 'logs/log.error'
+        with open(error_log_file, "a", encoding="utf-8") as f:
+            f.write(log_line)
+        
+        # Nếu có monitor_id, cũng ghi vào log file riêng của monitor đó
+        if monitor_id is not None:
+            monitor_log_file = f'logs/log_{monitor_id}.txt'
+            with open(monitor_log_file, "a", encoding="utf-8") as f:
+                f.write(log_line)
+                
+        # Nếu có user_id, cũng ghi vào log file riêng của user đó
+        if user_id is not None:
+            user_log_file = f'logs/log_user_{user_id}.txt'
+            with open(user_log_file, "a", encoding="utf-8") as f:
+                f.write(log_line)
+                
+    except Exception as e:
+        # Tránh lỗi khi file không thể write (file busy, permission, etc.)
+        # Không print error để tránh recursive loop
+        pass

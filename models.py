@@ -32,7 +32,7 @@ class MonitorItem(Base):
     log = Column(Text, nullable=True)
     last_check_time = Column(DateTime, nullable=True)
     queuedSendStr = Column(Text, nullable=True)
-    forceRestart = Column(Integer, default=False)  # TINYINT in DB, using Integer
+    forceRestart = Column(Boolean, default=False)  # Boolean in PostgreSQL DB
     count_online = Column(Integer, default=0, nullable=False)  # NOT NULL in DB
     count_offline = Column(Integer, default=0, nullable=False)  # NOT NULL in DB
     

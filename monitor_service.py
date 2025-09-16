@@ -49,6 +49,22 @@ def parse_chunk_argument():
     
     return chunk_info
 
+def parse_limit_argument():
+    """Parse --limit argument từ command line"""
+    limit = None
+    
+    for arg in sys.argv:
+        if arg.startswith('--limit='):
+            limit_str = arg.split('=')[1]
+            try:
+                limit = int(limit_str)
+                print(f"🔢 Limit mode: Processing maximum {limit} monitor items")
+                break
+            except ValueError:
+                print(f"❌ Invalid limit format: {limit_str}. Use format: --limit=500")
+    
+    return limit
+
 # Global chunk info
 CHUNK_INFO = parse_chunk_argument()
 
@@ -107,7 +123,7 @@ class MonitorItemDict:
 from telegram_helper import send_telegram_alert, send_telegram_recovery
 from webhook_helper import send_webhook_alert, send_webhook_recovery, get_webhook_config_for_monitor_item
 from single_instance_api import SingleInstanceManager, MonitorAPI, check_instance_and_get_status
-from utils import ol1, class_send_alert_of_thread, class_send_alert_of_thread, format_response_time, safe_get_env_int, safe_get_env_bool, validate_url, generate_thread_name, format_counter_display
+from utils import ol1, class_send_alert_of_thread, class_send_alert_of_thread, format_response_time, olerror, safe_get_env_int, safe_get_env_bool, validate_url, generate_thread_name, format_counter_display
 
 # Single Instance Manager - MUST be initialized after loading environment
 instance_manager = SingleInstanceManager()
@@ -132,6 +148,11 @@ EXTENDED_ALERT_INTERVAL_MINUTES = safe_get_env_int('EXTENDED_ALERT_INTERVAL_MINU
 # Global cache for monitor items to reduce DB queries from 1000/sec to 1/sec
 all_monitor_items = {}  # {item_id: MonitorItemDict}
 all_monitor_items_index = {}  # {item_id: MonitorItemDict} - same as above for fast lookup
+
+# ===== DELTA TIME TRACKING =====
+# Global dictionary để track thời gian check cuối cùng của mỗi monitor
+monitor_last_check_times = {}  # {monitor_id: unix_timestamp}
+monitor_check_times_lock = threading.Lock()  # Lock để thread-safe
 last_get_all_monitor_items = 0  # Unix timestamp
 cache_thread = None
 cache_lock = threading.Lock()
@@ -151,13 +172,17 @@ def cache_refresh_thread():
     thread_name = "CacheRefresh"
     threading.current_thread().name = thread_name
     
-    ol1(f"🗄️ [Cache] Starting cache refresh thread (interval: {CACHE_REFRESH_INTERVAL}s)")
+    # Parse limit argument
+    limit = parse_limit_argument()
+    limit_msg = f" (limit: {limit})" if limit else ""
+    
+    ol1(f"🗄️ [Cache] Starting cache refresh thread (interval: {CACHE_REFRESH_INTERVAL}s){limit_msg}")
     
     while not shutdown_event.is_set():
         try:
-            # Load ALL monitor items from DB using raw SQL (enabled + disabled)
+            # Load monitor items from DB using raw SQL with optional limit
             from sql_helpers import get_all_items_raw
-            all_items_raw = get_all_items_raw()
+            all_items_raw = get_all_items_raw(limit=limit)
             
             # Convert to indexed dictionary for O(1) lookup
             new_cache = {}
@@ -175,7 +200,8 @@ def cache_refresh_thread():
             if int(time.time()) % 10 == 0:
                 enabled_count = len([item for item in new_cache.values() if item.enable])
                 disabled_count = len(new_cache) - enabled_count
-                ol1(f"🗄️ [Cache] Refreshed: {len(new_cache)} total items ({enabled_count} enabled, {disabled_count} disabled)")
+                limit_info = f" (limit: {limit})" if limit else ""
+                ol1(f"🗄️ [Cache] Refreshed: {len(new_cache)} total items ({enabled_count} enabled, {disabled_count} disabled){limit_info}")
             
         except Exception as e:
             ol1(f"❌ [Cache] Error refreshing cache: {e}")
@@ -737,13 +763,15 @@ def get_monitor_item_by_id(item_id):
         
         if cache_age <= CACHE_EXPIRY_SECONDS and item_id in all_monitor_items:
             item = all_monitor_items[item_id]
-            ol1(f"✅ Cache hit for item {item_id}", item)
+            # ol1(f"✅ Cache hit for item {item_id}", item)
             # Cache hit - return cached item
             return item
 
     # Cache miss or expired - fallback to DB (fail fast for worker threads)
     try:
-        ol1(f"✅ NOT Cache hit for {item_id}, so Get From DB ", item)
+        ol1(f"✅ *** NOT Cache hit for {item_id}, so Get From DB ", item_id)
+        olerror(f"✅ *** NOT Cache hit for {item_id}, so Get From DB ")
+
         item_dict = get_monitor_item_by_id_raw(item_id)
         if item_dict:
             item_obj = MonitorItemDict(item_dict)
@@ -755,6 +783,7 @@ def get_monitor_item_by_id(item_id):
             return item_obj
         return None
     except Exception as e:
+        olerror(f"Worker thread failed to get monitor item {item_id}: {e}", item_id)
         ol1(f"💥 Worker thread failed to get monitor item {item_id}: {e}", item_id)
         ol1(f"🔥 This worker thread will die now!", item_id)
         raise e  # Let worker thread die
@@ -779,6 +808,44 @@ def update_monitor_item(monitor_item):
     except Exception as e:
         ol1(f"❌ Error updating monitor item {item_id}: {e}")
         raise
+
+def calculate_and_update_delta_time(monitor_id):
+    """
+    Tính delta time giữa lần check hiện tại và lần check trước đó
+    
+    Args:
+        monitor_id (int): ID của monitor
+        
+    Returns:
+        str: Formatted delta time string (e.g., "15.2s", "2m 30s", "1h 5m")
+    """
+    current_time = time.time()
+    delta_str = "N/A"
+    
+    with monitor_check_times_lock:
+        last_check_time = monitor_last_check_times.get(monitor_id)
+        
+        if last_check_time is not None:
+            # Tính delta time
+            delta_seconds = current_time - last_check_time
+            
+            # Format delta time
+            if delta_seconds < 60:
+                delta_str = f"{delta_seconds:.1f}s"
+            elif delta_seconds < 3600:  # < 1 hour
+                minutes = int(delta_seconds // 60)
+                seconds = int(delta_seconds % 60)
+                delta_str = f"{minutes}m {seconds}s"
+            else:  # >= 1 hour
+                hours = int(delta_seconds // 3600)
+                minutes = int((delta_seconds % 3600) // 60)
+                delta_str = f"{hours}h {minutes}m"
+        
+        # Cập nhật thời gian check hiện tại
+        monitor_last_check_times[monitor_id] = current_time
+    
+    return delta_str
+
 
 def compare_monitor_item_fields(original_item, current_item):
     """
@@ -868,7 +935,11 @@ def monitor_service_thread(monitor_item):
             if current_time - last_check_time >= check_interval:
                 check_count += 1
                 timestamp = datetime.now().strftime('%H:%M:%S')
-                ol1(f"📊 - [Thread {monitor_item.id}] Check #{check_count} at {timestamp}", monitorItem=monitor_item)
+                
+                # Tính delta time với lần check trước
+                delta_time = calculate_and_update_delta_time(monitor_item.id)
+
+                ol1(f"📊 - [Thread {monitor_item.id}] Check #{check_count} at {timestamp}, DTime = {delta_time}", monitorItem=monitor_item, newLine=True)
 
             #    Nếu có monitor_item.stopTo, và nếu stopTo > now thì không chạy check
                 # Handle stopTo - could be datetime, string, or invalid value
@@ -1420,6 +1491,11 @@ def main():
             print("  --chunk=2-300      - Process items 301-600 (chunk 2, size 300)")
             print("  --chunk=3-300      - Process items 601-900 (chunk 3, size 300)")
             print("  Example: python monitor_service.py start --chunk=1-300")
+            print("")
+            print("Limit Mode (restrict total items):")
+            print("  --limit=500        - Process maximum 500 monitor items")
+            print("  --limit=1000       - Process maximum 1000 monitor items")
+            print("  Example: python monitor_service.py start --limit=500")
             print("")
             print("Scaling Example (3000 items with 300 per instance):")
             print("  Terminal 1: python monitor_service.py start --chunk=1-300")
