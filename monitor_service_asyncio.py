@@ -115,6 +115,12 @@ shutdown_flag = threading.Event()  # Thread-safe shutdown flag
 monitor_stats = {}
 monitor_last_check_times = {}  # Delta time tracking
 
+# Global delta time tracking for averages
+global_delta_time_sum = 0.0  # Tổng delta time toàn bộ hệ thống
+global_check_count = 0       # Tổng số lần check toàn bộ hệ thống
+monitor_delta_time_stats = {}  # Per-monitor delta time stats: {monitor_id: {'sum': float, 'count': int}}
+delta_time_lock = threading.Lock()  # Thread-safe access to delta time stats
+
 class MonitorItemDict:
     """Convert dict to object-like access (same as original)"""
     def __init__(self, data_dict):
@@ -351,35 +357,77 @@ class AsyncMonitorService:
                         await conn.execute(query, status, monitor_id)
                 
         except Exception as e:
-            olerror(f"[AsyncIO-T{self.thread_id}] Error updating monitor {monitor_id}: {e}")
+            ol1(f"[AsyncIO-T{self.thread_id}] Error updating monitor {monitor_id}: {e}", monitor_id)
+            olerror(f"[AsyncIO-T{self.thread_id}] Error updating monitor {monitor_id}: {e}", monitor_id)
 
     async def calculate_and_update_delta_time(self, monitor_id):
         """
-        Async version of delta time calculation (same logic as original)
+        Async version of delta time calculation with average tracking
         """
+        global global_delta_time_sum, global_check_count, monitor_delta_time_stats
+        
         current_time = time.time()
         delta_str = "N/A"
+        delta_seconds = 0.0
         
-        # No need for lock with threading dict access
-        last_check_time = monitor_last_check_times.get(monitor_id)
-        
-        if last_check_time is not None:
-            delta_seconds = current_time - last_check_time
+        # Use thread-safe dict access with monitor_id key
+        try:
+            last_check_time = monitor_last_check_times.get(monitor_id)
             
-            if delta_seconds < 60:
+            if last_check_time is not None:
+                delta_seconds = current_time - last_check_time
+                
+                # Always display in seconds (no conversion to minutes/hours)
                 delta_str = f"{delta_seconds:.1f}s"
-            elif delta_seconds < 3600:
-                minutes = int(delta_seconds // 60)
-                seconds = int(delta_seconds % 60)
-                delta_str = f"{minutes}m {seconds}s"
+                
+                # Update global and per-monitor delta time stats (thread-safe)
+                with delta_time_lock:
+                    # Global stats
+                    global_delta_time_sum += delta_seconds
+                    global_check_count += 1
+                    
+                    # Per-monitor stats
+                    if monitor_id not in monitor_delta_time_stats:
+                        monitor_delta_time_stats[monitor_id] = {'sum': 0.0, 'count': 0}
+                    
+                    monitor_delta_time_stats[monitor_id]['sum'] += delta_seconds
+                    monitor_delta_time_stats[monitor_id]['count'] += 1
+                    
             else:
-                hours = int(delta_seconds // 3600)
-                minutes = int((delta_seconds % 3600) // 60)
-                delta_str = f"{hours}h {minutes}m"
+                # First time check
+                delta_str = "N/A"
         
+        except Exception as e:
+            ol1(f"[ERROR] [AsyncIO-T{self.thread_id}] Delta time calculation error for monitor {monitor_id}: {e}")
+            delta_str = "ERR"
+        
+        # Update last check time
         monitor_last_check_times[monitor_id] = current_time
         
         return delta_str
+
+    def get_global_delta_time_average(self):
+        """Get global average delta time with check count"""
+        global global_delta_time_sum, global_check_count
+        
+        with delta_time_lock:
+            if global_check_count > 0:
+                avg = global_delta_time_sum / global_check_count
+                return f"{avg:.1f}s ({global_check_count} checks)"
+            else:
+                return "N/A (0 checks)"
+    
+    def get_monitor_delta_time_average(self, monitor_id):
+        """Get average delta time for specific monitor with check count"""
+        global monitor_delta_time_stats
+        
+        with delta_time_lock:
+            if monitor_id in monitor_delta_time_stats:
+                stats = monitor_delta_time_stats[monitor_id]
+                if stats['count'] > 0:
+                    avg = stats['sum'] / stats['count']
+                    return f"{avg:.1f}s ({stats['count']} checks)"
+            return "N/A (0 checks)"
 
     async def check_single_monitor(self, monitor_item):
         """Check a single monitor asynchronously (core checking logic)"""
@@ -389,7 +437,7 @@ class AsyncMonitorService:
             
             # Detailed logging like original service
             check_interval = getattr(monitor_item, 'check_interval_seconds', 60) or 60
-            ol1(f"=== Checking: (ID: {monitor_item.id})", monitor_item)
+            ol1(f"=== Checking: (ID: {monitor_item.id})", monitor_item, True)
             ol1(f"Type: {monitor_item.type}", monitor_item)
             ol1(f"URL: {monitor_item.url_check}", monitor_item)
             ol1(f"Interval: {check_interval}s", monitor_item)
@@ -435,17 +483,21 @@ class AsyncMonitorService:
                 status = 1 if result['success'] else -1
                 await self.update_monitor_result(monitor_id, status)
                 
-                # Calculate delta time
-                delta_time = await self.calculate_and_update_delta_time(monitor_id)
+                # Use cached delta time from check start (don't calculate again)
+                cached_delta_time = getattr(monitor_item, '_cached_delta_time', 'N/A')
+                
+                # Get average delta times
+                monitor_avg_delta = self.get_monitor_delta_time_average(monitor_id)
+                global_avg_delta = self.get_global_delta_time_average()
                 
                 # Log result (same format as original)
                 check_duration = (time.time() - check_start) * 1000
                 status_str = "[OK] SUCCESS" if result['success'] else "[ERROR] FAILED"
                 response_time = f"{result['response_time']:.1f}ms" if result['response_time'] else "N/A"
                 
-                # Log kết quả giống như bản gốc
+                # Log kết quả với both average delta times
                 ol1(f"[CHECK] [AsyncIO-T{self.thread_id}-{monitor_id}] {status_str} | {response_time} | "
-                    f"Check: {check_duration:.1f}ms | DTime = {delta_time} | {monitor_item.name}", monitor_item)
+                    f"Check: {check_duration:.1f}ms | DTime = {cached_delta_time} | dTimeAverage = {monitor_avg_delta} | dTimeAverageGlobal = {global_avg_delta} | {monitor_item.name}", monitor_item)
                 
                 # Log chi tiết message nếu có
                 if result.get('message'):
@@ -480,10 +532,21 @@ class AsyncMonitorService:
                 check_count += 1
                 timestamp = datetime.now().strftime('%H:%M:%S')
                 
-                # Calculate delta time
+                # Calculate delta time once per check cycle
                 delta_time = await self.calculate_and_update_delta_time(monitor_id)
                 
+                # Cache delta time for use in check result logging
+                monitor_item._cached_delta_time = delta_time
+                
+                # Get global average for periodic logging
+                global_avg_delta = self.get_global_delta_time_average()
+                
                 ol1(f"[PERF] [AsyncIO-T{self.thread_id}-{monitor_id}] Check #{check_count} at {timestamp}, DTime = {delta_time}")
+                
+                # Log global stats every 10 checks per monitor
+                if check_count % 10 == 0:
+                    with delta_time_lock:
+                        ol1(f"[GLOBAL] [AsyncIO-T{self.thread_id}] Global Stats: Total checks = {global_check_count}, dTimeAverageGlobal = {global_avg_delta}")
                 
                 # Check if monitor is paused (same logic as original)
                 should_pause = False
@@ -581,9 +644,13 @@ class AsyncMonitorService:
                     failed = self.stats['failed_checks']
                     success_rate = (success / total * 100) if total > 0 else 0
                     
+                    # Get global average delta time for stats
+                    global_avg_delta = self.get_global_delta_time_average()
+                    
                     ol1(f"[STATS] [AsyncIO-T{self.thread_id} Stats] Uptime: {uptime:.0f}s | "
                         f"Checks: {total} | Success: {success} ({success_rate:.1f}%) | "
-                        f"Failed: {failed} | Rate: {total/uptime*60:.1f} checks/min")
+                        f"Failed: {failed} | Rate: {total/uptime*60:.1f} checks/min | "
+                        f"dTimeAverageGlobal: {global_avg_delta}")
                     
         except asyncio.CancelledError:
             ol1(f"[STOP] [AsyncIO-T{self.thread_id}] Stats reporter cancelled")
