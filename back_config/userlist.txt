@@ -1,0 +1,2 @@
+"admin1" "qqqppp123"
+"pgbouncer_auth" "pgbouncer123"
