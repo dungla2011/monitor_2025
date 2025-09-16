@@ -407,14 +407,12 @@ def safe_update_monitor_item_worker_thread(monitor_item):
     Nếu DB lỗi thì worker thread sẽ die
     """
     try:
-        # Determine status and messages
+        # Determine status and item ID
         status = monitor_item['last_check_status'] if isinstance(monitor_item, dict) else monitor_item.last_check_status
-        error_msg = monitor_item.get('result_error') if isinstance(monitor_item, dict) else getattr(monitor_item, 'result_error', None)
-        valid_msg = monitor_item.get('result_valid') if isinstance(monitor_item, dict) else getattr(monitor_item, 'result_valid', None)
         item_id = monitor_item['id'] if isinstance(monitor_item, dict) else monitor_item.id
         
         # Raw SQL update
-        update_monitor_result_raw(item_id, status, error_msg, valid_msg)
+        update_monitor_result_raw(item_id, status)
         return True
         
     except Exception as e:
@@ -798,12 +796,10 @@ def update_monitor_item(monitor_item):
     try:
         # Extract values
         status = monitor_item['last_check_status'] if isinstance(monitor_item, dict) else monitor_item.last_check_status
-        error_msg = monitor_item.get('result_error') if isinstance(monitor_item, dict) else getattr(monitor_item, 'result_error', None)
-        valid_msg = monitor_item.get('result_valid') if isinstance(monitor_item, dict) else getattr(monitor_item, 'result_valid', None)
         item_id = monitor_item['id'] if isinstance(monitor_item, dict) else monitor_item.id
         
         # Raw SQL update
-        update_monitor_result_raw(item_id, status, error_msg, valid_msg)
+        update_monitor_result_raw(item_id, status)
         
     except Exception as e:
         ol1(f"❌ Error updating monitor item {item_id}: {e}")

@@ -296,35 +296,59 @@ class AsyncMonitorService:
             olerror(f"[AsyncIO-T{self.thread_id}] Error loading monitors: {e}")
             return []
 
-    async def update_monitor_result(self, monitor_id, status, error_msg=None, valid_msg=None):
+    async def update_monitor_result(self, monitor_id, status):
         """Update monitor result in database (async version of original)"""
         try:
             if self.db_type == 'mysql':
-                query = """
-                    UPDATE monitor_items 
-                    SET last_check_status = %s, 
-                        last_check_time = NOW(),
-                        result_error = %s,
-                        result_valid = %s,
-                        updated_at = NOW()
-                    WHERE id = %s
-                """
-                async with self.db_pool.acquire() as conn:
-                    async with conn.cursor() as cursor:
-                        await cursor.execute(query, (status, error_msg, valid_msg, monitor_id))
-                        await conn.commit()
+                if status == 1:  # Success
+                    query = """
+                        UPDATE monitor_items 
+                        SET last_check_status = %s, 
+                            last_check_time = NOW(),
+                            count_online = count_online + 1,
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """
+                    async with self.db_pool.acquire() as conn:
+                        async with conn.cursor() as cursor:
+                            await cursor.execute(query, (status, monitor_id))
+                            await conn.commit()
+                else:  # Error
+                    query = """
+                        UPDATE monitor_items 
+                        SET last_check_status = %s, 
+                            last_check_time = NOW(),
+                            count_offline = count_offline + 1,
+                            updated_at = NOW()
+                        WHERE id = %s
+                    """
+                    async with self.db_pool.acquire() as conn:
+                        async with conn.cursor() as cursor:
+                            await cursor.execute(query, (status, monitor_id))
+                            await conn.commit()
             else:
-                query = """
-                    UPDATE monitor_items 
-                    SET last_check_status = $1, 
-                        last_check_time = NOW(),
-                        result_error = $2,
-                        result_valid = $3,
-                        updated_at = NOW()
-                    WHERE id = $4
-                """
-                async with self.db_pool.acquire() as conn:
-                    await conn.execute(query, status, error_msg, valid_msg, monitor_id)
+                if status == 1:  # Success
+                    query = """
+                        UPDATE monitor_items 
+                        SET last_check_status = $1, 
+                            last_check_time = NOW(),
+                            count_online = count_online + 1,
+                            updated_at = NOW()
+                        WHERE id = $2
+                    """
+                    async with self.db_pool.acquire() as conn:
+                        await conn.execute(query, status, monitor_id)
+                else:  # Error
+                    query = """
+                        UPDATE monitor_items 
+                        SET last_check_status = $1, 
+                            last_check_time = NOW(),
+                            count_offline = count_offline + 1,
+                            updated_at = NOW()
+                        WHERE id = $2
+                    """
+                    async with self.db_pool.acquire() as conn:
+                        await conn.execute(query, status, monitor_id)
                 
         except Exception as e:
             olerror(f"[AsyncIO-T{self.thread_id}] Error updating monitor {monitor_id}: {e}")
@@ -409,12 +433,7 @@ class AsyncMonitorService:
                 
                 # Update database
                 status = 1 if result['success'] else -1
-                await self.update_monitor_result(
-                    monitor_id, 
-                    status, 
-                    result.get('message') if not result['success'] else None,
-                    result.get('message') if result['success'] else None
-                )
+                await self.update_monitor_result(monitor_id, status)
                 
                 # Calculate delta time
                 delta_time = await self.calculate_and_update_delta_time(monitor_id)
@@ -440,7 +459,7 @@ class AsyncMonitorService:
                 self.stats['failed_checks'] += 1
                 
                 # Update database with error
-                await self.update_monitor_result(monitor_id, -1, str(e))
+                await self.update_monitor_result(monitor_id, -1)
                 
                 return {
                     'success': False,

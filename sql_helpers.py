@@ -261,15 +261,13 @@ def get_monitor_item_by_id_raw(monitor_id):
             conn.close()
         raise e
 
-def update_monitor_result_raw(monitor_id, status, error_msg=None, valid_msg=None):
+def update_monitor_result_raw(monitor_id, status):
     """
     Raw SQL: Update monitor result và tăng counter
     
     Args:
         monitor_id (int): ID của monitor
         status (int): 1=success, -1=error
-        error_msg (str): Error message nếu có
-        valid_msg (str): Valid message nếu có
     """
     conn = None
     cursor = None
@@ -282,21 +280,17 @@ def update_monitor_result_raw(monitor_id, status, error_msg=None, valid_msg=None
                 UPDATE monitor_items 
                 SET last_check_status = %s,
                     last_check_time = NOW(),
-                    result_valid = %s,
-                    result_error = NULL,
                     count_online = count_online + 1
                 WHERE id = %s
-            """, (status, valid_msg, monitor_id))
+            """, (status, monitor_id))
         else:  # Error
             cursor.execute("""
                 UPDATE monitor_items 
                 SET last_check_status = %s,
                     last_check_time = NOW(),
-                    result_error = %s,
-                    result_valid = NULL,
                     count_offline = count_offline + 1  
                 WHERE id = %s
-            """, (status, error_msg, monitor_id))
+            """, (status, monitor_id))
             
         conn.commit()
         cursor.close()
