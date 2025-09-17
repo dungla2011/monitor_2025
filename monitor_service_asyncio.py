@@ -121,6 +121,15 @@ global_check_count = 0       # Tổng số lần check toàn bộ hệ thống
 monitor_delta_time_stats = {}  # Per-monitor delta time stats: {monitor_id: {'sum': float, 'count': int}}
 delta_time_lock = threading.Lock()  # Thread-safe access to delta time stats
 
+# ===== CACHE SYSTEM FOR MONITOR ITEMS (AsyncIO) =====
+all_monitor_items = {}  # {item_id: MonitorItemDict}
+last_get_all_monitor_items = 0  # Unix timestamp
+CACHE_EXPIRY_SECONDS = 5  # seconds - cache considered fresh for 5 seconds
+
+# ===== GLOBAL MONITOR TRACKING (PREVENT DUPLICATES) =====
+global_running_monitors = set()  # Global set of monitor IDs currently running
+global_monitor_lock = threading.Lock()  # Thread-safe access to global tracking
+
 class MonitorItemDict:
     """Convert dict to object-like access (same as original)"""
     def __init__(self, data_dict):
@@ -142,6 +151,7 @@ class AsyncMonitorService:
         self.semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHECKS)
         self.monitor_tasks = {}
         self.shutdown_event = None  # Will be created in async context
+        self.manager_lock = None  # Will be created in async context
         self.stats = {
             'total_checks': 0,
             'successful_checks': 0,
@@ -154,6 +164,7 @@ class AsyncMonitorService:
         try:
             # Create shutdown event for this event loop
             self.shutdown_event = asyncio.Event()
+            self.manager_lock = asyncio.Lock()
             
             # Get database configuration (same as original service)
             db_config = get_database_config()
@@ -249,6 +260,82 @@ class AsyncMonitorService:
             ol1(f"[OK] [AsyncIO-T{self.thread_id}] Cleanup completed")
         except Exception as e:
             ol1(f"[ERROR] [AsyncIO-T{self.thread_id}] Cleanup error: {e}")
+
+    async def cache_refresh_loop(self):
+        """
+        Async background task: refresh all_monitor_items mỗi 1 giây (giảm query DB cho get_monitor_item_by_id_async)
+        Tôn trọng LIMIT và CHUNK để chỉ cache đúng subset cần thiết.
+        """
+        global all_monitor_items, last_get_all_monitor_items
+        while not self.shutdown_event.is_set():
+            try:
+                time.sleep(1)
+                # Query monitor items from DB với logic phù hợp với LIMIT/CHUNK
+                if LIMIT or CHUNK_INFO:
+                    # Khi có LIMIT/CHUNK: chỉ lấy đúng subset cần thiết để tiết kiệm memory
+                    if self.db_type == 'mysql':
+                        query = "SELECT * FROM monitor_items ORDER BY id"
+                        if LIMIT:
+                            # LIMIT áp dụng cho tất cả monitors, không phụ thuộc enable
+                            query += f" LIMIT {LIMIT}"
+                        
+                        async with self.db_pool.acquire() as conn:
+                            async with conn.cursor() as cursor:
+                                await cursor.execute(query)
+                                rows = await cursor.fetchall()
+                                columns = [desc[0] for desc in cursor.description]
+                                all_monitors = [MonitorItemDict(dict(zip(columns, row))) for row in rows]
+                    else:
+                        query = "SELECT * FROM monitor_items ORDER BY id"
+                        if LIMIT:
+                            query += f" LIMIT {LIMIT}"
+                        
+                        async with self.db_pool.acquire() as conn:
+                            rows = await conn.fetch(query)
+                            all_monitors = [MonitorItemDict(dict(row)) for row in rows]
+                            
+                    # Apply chunk filtering if specified (sau khi đã limit)
+                    if CHUNK_INFO:
+                        offset = CHUNK_INFO['offset']
+                        limit = CHUNK_INFO['limit']
+                        all_monitors = all_monitors[offset:offset + limit] if offset < len(all_monitors) else []
+                        
+                else:
+                    # Khi không có LIMIT/CHUNK: lấy tất cả để detect enable changes toàn hệ thống
+                    if self.db_type == 'mysql':
+                        query = "SELECT * FROM monitor_items ORDER BY id"
+                        async with self.db_pool.acquire() as conn:
+                            async with conn.cursor() as cursor:
+                                await cursor.execute(query)
+                                rows = await cursor.fetchall()
+                                columns = [desc[0] for desc in cursor.description]
+                                all_monitors = [MonitorItemDict(dict(zip(columns, row))) for row in rows]
+                    else:
+                        query = "SELECT * FROM monitor_items ORDER BY id"
+                        async with self.db_pool.acquire() as conn:
+                            rows = await conn.fetch(query)
+                            all_monitors = [MonitorItemDict(dict(row)) for row in rows]
+                
+                # Cache chứa monitors theo logic LIMIT/CHUNK
+                all_monitor_items = {monitor.id: monitor for monitor in all_monitors}
+                last_get_all_monitor_items = time.time()
+                
+                enabled_count = len([m for m in all_monitor_items.values() if getattr(m, 'enable', 0) == 1])
+                total_count = len(all_monitor_items)
+                
+                limit_info = f"LIMIT={LIMIT}" if LIMIT else ""
+                chunk_info = f"CHUNK={CHUNK_INFO['number']}-{CHUNK_INFO['size']}" if CHUNK_INFO else ""
+                mode_info = f" ({limit_info} {chunk_info})".strip()
+                
+                ol1(f"[Cache] [AsyncIO-T{self.thread_id}] Refreshed cache: {total_count} total, {enabled_count} enabled{mode_info}")
+                
+            except Exception as e:
+                ol1(f"[Cache] [AsyncIO-T{self.thread_id}] Cache refresh error: {e}")
+            # Sleep 1 giây hoặc cho đến khi shutdown
+            try:
+                await asyncio.wait_for(self.shutdown_event.wait(), timeout=1)
+            except asyncio.TimeoutError:
+                continue
 
     async def get_enabled_monitors(self):
         """Get enabled monitors from database (async version of original)"""
@@ -360,6 +447,38 @@ class AsyncMonitorService:
             ol1(f"[AsyncIO-T{self.thread_id}] Error updating monitor {monitor_id}: {e}", monitor_id)
             olerror(f"[AsyncIO-T{self.thread_id}] Error updating monitor {monitor_id}: {e}", monitor_id)
 
+    async def get_monitor_item_by_id_async(self, item_id):
+        """Async version of get_monitor_item_by_id with cache (like threading version)"""
+        global all_monitor_items, last_get_all_monitor_items
+        now = time.time()
+        # Ưu tiên lấy từ cache nếu cache còn fresh
+        if all_monitor_items and (now - last_get_all_monitor_items) < CACHE_EXPIRY_SECONDS:
+            item = all_monitor_items.get(item_id)
+            if item:
+                return item
+        # Nếu không có trong cache hoặc cache hết hạn, fallback DB
+        try:
+            ol1(f"*** Not cache, [AsyncIO-T{self.thread_id}] Getting monitor item {item_id} from DB", item_id)
+            if self.db_type == 'mysql':
+                query = "SELECT * FROM monitor_items WHERE id = %s"
+                async with self.db_pool.acquire() as conn:
+                    async with conn.cursor() as cursor:
+                        await cursor.execute(query, (item_id,))
+                        row = await cursor.fetchone()
+                        if row:
+                            columns = [desc[0] for desc in cursor.description]
+                            row_dict = dict(zip(columns, row))
+                            return MonitorItemDict(row_dict)
+                        return None
+            else:  # PostgreSQL
+                query = "SELECT * FROM monitor_items WHERE id = $1"
+                async with self.db_pool.acquire() as conn:
+                    row = await conn.fetchrow(query, item_id)
+                    return MonitorItemDict(dict(row)) if row else None
+        except Exception as e:
+            ol1(f"❌ [AsyncIO-T{self.thread_id}] Error getting monitor item {item_id}: {e}")
+            raise
+
     async def calculate_and_update_delta_time(self, monitor_id):
         """
         Async version of delta time calculation with average tracking
@@ -428,6 +547,109 @@ class AsyncMonitorService:
                     avg = stats['sum'] / stats['count']
                     return f"{avg:.1f}s ({stats['count']} checks)"
             return "N/A (0 checks)"
+
+    def compare_monitor_item_fields(self, original_item, current_item):
+        """
+        Compare important fields of monitor item (same as threading version)
+        
+        Args:
+            original_item: MonitorItem at start
+            current_item: MonitorItem from current DB
+            
+        Returns:
+            tuple: (has_changes: bool, changes: list)
+        """
+        if not current_item:
+            return True, ["Item not found in database"]
+        
+        # Same fields as threading version (ignore forceRestart to reduce unnecessary restarts)
+        fields_to_check = [
+            ('enable', 'enable'),
+            ('name', 'name'), 
+            ('user_id', 'user_id'),
+            ('url_check', 'url_check'),
+            ('type', 'type'),
+            ('maxAlertCount', 'maxAlertCount'),
+            ('check_interval_seconds', 'check_interval_seconds'),
+            ('result_valid', 'result_valid'),
+            ('result_error', 'result_error'),
+            ('stopTo', 'stopTo')
+            # ('forceRestart', 'forceRestart')  # Ignore to reduce unnecessary restarts
+        ]
+        
+        changes = []
+        
+        for field_name, attr_name in fields_to_check:
+            original_value = getattr(original_item, attr_name, None)
+            current_value = getattr(current_item, attr_name, None)
+            
+            if original_value != current_value:
+                changes.append(f"{field_name}: {original_value} -> {current_value}")
+        
+        return len(changes) > 0, changes
+
+    async def monitor_manager_loop(self):
+        """
+        Background manager: liên tục kiểm tra các monitor task, nếu task nào đã done thì restart lại với config mới nhất.
+        Ngoài ra, tự động khởi động lại các monitor enable=1 mà chưa có trong monitor_tasks (tức là vừa được enable lại).
+        """
+        global all_monitor_items, global_running_monitors, global_monitor_lock
+        while not self.shutdown_event.is_set():
+            try:
+                async with self.manager_lock:  # Prevent race conditions
+                    # 1. Kiểm tra các monitor đang theo dõi, nếu task done thì restart nếu còn enable
+                    monitor_ids = list(self.monitor_tasks.keys())
+                    for monitor_id in monitor_ids:
+                        task = self.monitor_tasks.get(monitor_id)
+                        if task is None or task.done():
+                            monitor_item = await self.get_monitor_item_by_id_async(monitor_id)
+                            if monitor_item and monitor_item.enable:
+                                with global_monitor_lock:
+                                    if monitor_id not in global_running_monitors:
+                                        ol1(f"[MANAGER] [AsyncIO-T{self.thread_id}] Restarting monitor {monitor_id} with new config")
+                                        new_task = asyncio.create_task(
+                                            self.monitor_loop(monitor_item),
+                                            name=f"Monitor-T{self.thread_id}-{monitor_id}-{getattr(monitor_item, 'name', monitor_id)}"
+                                        )
+                                    else:
+                                        # ol1(f"🚫 [SKIP] [AsyncIO-T{self.thread_id}] Monitor {monitor_id} restart skipped - already running globally")
+                                        continue
+                                self.monitor_tasks[monitor_id] = new_task
+                            else:
+                                if monitor_id in self.monitor_tasks:
+                                    del self.monitor_tasks[monitor_id]
+
+                    # 2. Quét cache all_monitor_items để tìm monitor enable=1 mà chưa có trong monitor_tasks (tức là vừa enable lại)
+                    for item_id, monitor_item in all_monitor_items.items():
+                        # Nếu monitor enable=1 và chưa có task đang chạy HOẶC task đã done
+                        existing_task = self.monitor_tasks.get(item_id)
+                        if (getattr(monitor_item, 'enable', 0) == 1 and 
+                            (existing_task is None or existing_task.done())):
+                            
+                            # Chỉ tạo mới nếu thực sự không có task hoặc task đã kết thúc
+                            if existing_task and existing_task.done():
+                                ol1(f"[MANAGER] [AsyncIO-T{self.thread_id}] Cleaning up finished task for monitor {item_id}")
+                                del self.monitor_tasks[item_id]
+                            
+                            # Kiểm tra lần cuối để tránh duplicate (local + global)
+                            with global_monitor_lock:
+                                if item_id not in self.monitor_tasks and item_id not in global_running_monitors:
+                                    ol1(f"[MANAGER] [AsyncIO-T{self.thread_id}] Auto-starting newly enabled monitor {item_id} ({getattr(monitor_item, 'name', item_id)})")
+                                    new_task = asyncio.create_task(
+                                        self.monitor_loop(monitor_item),
+                                        name=f"Monitor-T{self.thread_id}-{item_id}-{getattr(monitor_item, 'name', item_id)}"
+                                    )
+                                    self.monitor_tasks[item_id] = new_task
+                                # else:
+                                #     if item_id in global_running_monitors:
+                                #         ol1(f"🚫 [SKIP] [AsyncIO-T{self.thread_id}] Monitor {item_id} already running globally")
+
+                # Sleep 2 giây trước khi kiểm tra lại
+                await asyncio.wait_for(self.shutdown_event.wait(), timeout=2)
+            except asyncio.TimeoutError:
+                continue
+            except Exception as e:
+                ol1(f"[MANAGER] [AsyncIO-T{self.thread_id}] Manager loop error: {e}")
 
     async def check_single_monitor(self, monitor_item):
         """Check a single monitor asynchronously (core checking logic)"""
@@ -525,8 +747,19 @@ class AsyncMonitorService:
         monitor_id = monitor_item.id
         check_count = 0
         
+        # Global duplicate prevention
+        global global_running_monitors, global_monitor_lock
+        
+        with global_monitor_lock:
+            if monitor_id in global_running_monitors:
+                # ol1(f"🚫 [DUPLICATE] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor already running globally, skipping...")
+                return
+            global_running_monitors.add(monitor_id)
+            ol1(f"🔒 [LOCK] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor locked globally")
+        
         try:
             ol1(f"[START] [AsyncIO-T{self.thread_id}-{monitor_id}] Starting monitor: {monitor_item.name}")
+            ol1(f"[DEBUG] [AsyncIO-T{self.thread_id}-{monitor_id}] Task name: {asyncio.current_task().get_name()}")
             
             while not self.shutdown_event.is_set():
                 check_count += 1
@@ -569,61 +802,104 @@ class AsyncMonitorService:
                     # Perform check
                     await self.check_single_monitor(monitor_item)
                 
-                # Wait for next check interval
+                # Wait for next check interval with config change detection
                 check_interval = getattr(monitor_item, 'check_interval_seconds', CHECK_INTERVAL)
                 if check_interval <= 0:
                     check_interval = CHECK_INTERVAL
                 
-                try:
-                    await asyncio.wait_for(
-                        self.shutdown_event.wait(), 
-                        timeout=check_interval
-                    )
-                    break  # Shutdown requested
-                except asyncio.TimeoutError:
-                    continue  # Normal timeout, continue monitoring
+                # Save original monitor item for config comparison
+                original_monitor_item = monitor_item
+                
+                # Sleep in n second intervals to check for config changes (same as threading version)
+                sleep_remaining = check_interval
+                while sleep_remaining > 0 and not self.shutdown_event.is_set():
+                    sleep_time = min(10, sleep_remaining)  # Sleep max 10 seconds at a time
+                    
+                    try:
+                        await asyncio.wait_for(
+                            self.shutdown_event.wait(), 
+                            timeout=sleep_time
+                        )
+                        # Shutdown requested
+                        return
+                    except asyncio.TimeoutError:
+                        # Normal timeout, check for config changes
+                        sleep_remaining -= sleep_time
+                        
+                        try:
+                            # Check for configuration changes every 3 seconds (same as threading version)
+                            current_monitor_item = await self.get_monitor_item_by_id_async(original_monitor_item.id)
+                            
+                            if current_monitor_item:
+                                has_changes, changes = self.compare_monitor_item_fields(original_monitor_item, current_monitor_item)
+                                
+                                if has_changes:
+                                    ol1(f"🔄 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} config changed:", monitor_item)
+                                    for change in changes:
+                                        ol1(f"  - {change}", monitor_item)
+                                    ol1(f"🔄 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} stopping by config changes...", monitor_item)
+                                    return  # Exit monitor loop to restart with new config
+                            else:
+                                ol1(f"🔄 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} not found in database, stopping...", monitor_item )
+                                return
+                                
+                        except Exception as e:
+                            ol1(f"⚠️ [AsyncIO-T{self.thread_id}-{monitor_id}] Error checking config changes for monitor {original_monitor_item.id}: {e}", monitor_item)
+                            # Continue monitoring even if config check fails
                 
         except asyncio.CancelledError:
-            ol1(f"[STOP] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor cancelled: {monitor_item.name}")
+            ol1(f"[STOP] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor cancelled: {monitor_item.name}", monitor_item)
         except Exception as e:
-            olerror(f"[AsyncIO-T{self.thread_id}-{monitor_id}] Monitor error: {e}")
+            olerror(f"[AsyncIO-T{self.thread_id}-{monitor_id}] Monitor error: {e}", monitor_item)
         finally:
-            ol1(f"🧹 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor cleanup: {monitor_item.name} (checks: {check_count})")
+            # Release global lock
+            with global_monitor_lock:
+                if monitor_id in global_running_monitors:
+                    global_running_monitors.remove(monitor_id)
+                    ol1(f"🔓 [UNLOCK] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor unlocked globally", monitor_item)
+            ol1(f"🧹 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor cleanup: {monitor_item.name} (checks: {check_count})", monitor_item)
 
     async def start_monitoring(self):
         """Start monitoring all enabled monitors (async version of main manager)"""
         try:
+            # Start cache refresh background task
+            cache_task = asyncio.create_task(self.cache_refresh_loop())
+
             # Load enabled monitors
             monitors = await self.get_enabled_monitors()
-            
             if not monitors:
                 ol1(f"⚠️ [AsyncIO-T{self.thread_id}] No enabled monitors found")
+                self.shutdown_event.set()
+                await cache_task
                 return
-            
+
             ol1(f"[START] [AsyncIO-T{self.thread_id}] Starting monitoring for {len(monitors)} monitors")
             ol1(f"[FAST] Max concurrent checks: {MAX_CONCURRENT_CHECKS}")
             ol1(f"🔗 Database pool size: {CONNECTION_POOL_SIZE}")
-            
+
             # Create monitoring tasks
-            tasks = []
             for monitor in monitors:
                 task = asyncio.create_task(
                     self.monitor_loop(monitor),
                     name=f"Monitor-T{self.thread_id}-{monitor.id}-{monitor.name}"
                 )
-                tasks.append(task)
                 self.monitor_tasks[monitor.id] = task
-            
-            ol1(f"[OK] [AsyncIO-T{self.thread_id}] Created {len(tasks)} monitoring tasks")
-            
+
+            ol1(f"[OK] [AsyncIO-T{self.thread_id}] Created {len(self.monitor_tasks)} monitoring tasks")
+
             # Start statistics reporter
             stats_task = asyncio.create_task(self.stats_reporter())
-            
+            # Start manager loop
+            manager_task = asyncio.create_task(self.monitor_manager_loop())
+
             # Wait for all tasks or shutdown
             try:
-                await asyncio.gather(*tasks, stats_task)
+                await asyncio.gather(stats_task, manager_task)
             except asyncio.CancelledError:
                 ol1(f"[STOP] [AsyncIO-T{self.thread_id}] Monitoring cancelled")
+            finally:
+                self.shutdown_event.set()
+                await cache_task
             
         except Exception as e:
             olerror(f"[AsyncIO-T{self.thread_id}] Monitoring error: {e}")
