@@ -71,7 +71,7 @@ def parse_chunk_argument():
                 print(f"[ERROR] Invalid chunk format: {chunk_str}. Use format: --chunk=1-300")
     
     return chunk_info
-
+ 
 def parse_limit_argument():
     """Parse --limit argument từ command line"""
     limit = None
