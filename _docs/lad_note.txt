@@ -1,0 +1,2 @@
+- Tăng số connection pgsql lên 300
+max_connections = 300	# là đáp ứng được 1500 thread
