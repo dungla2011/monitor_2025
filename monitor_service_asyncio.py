@@ -110,6 +110,9 @@ CHECK_INTERVAL = safe_get_env_int('ASYNC_CHECK_INTERVAL', 60)
 MULTI_THREAD_ENABLED = safe_get_env_bool('ASYNC_MULTI_THREAD', True)
 THREAD_COUNT = safe_get_env_int('ASYNC_THREAD_COUNT', min(4, multiprocessing.cpu_count()))
 
+# Config refresh constants
+CHECK_REFRESH_ITEM = 10  # Check config changes every 10 seconds
+
 # Global state
 shutdown_flag = threading.Event()  # Thread-safe shutdown flag
 monitor_stats = {}
@@ -130,6 +133,12 @@ CACHE_EXPIRY_SECONDS = 5  # seconds - cache considered fresh for 5 seconds
 global_running_monitors = set()  # Global set of monitor IDs currently running
 global_monitor_lock = threading.Lock()  # Thread-safe access to global tracking
 
+# ===== INTERNET CONNECTIVITY CHECKING =====
+lastCheckInternetOK = 0  # Unix timestamp of last successful internet check
+internet_check_lock = threading.Lock()  # Thread-safe access to internet status
+INTERNET_CHECK_INTERVAL = 1  # Check internet every 1 seconds
+INTERNET_VALIDITY_SECONDS = 5  # Internet check valid for 5 seconds
+
 class MonitorItemDict:
     """Convert dict to object-like access (same as original)"""
     def __init__(self, data_dict):
@@ -139,6 +148,201 @@ class MonitorItemDict:
     
     def get(self, key, default=None):
         return self._data.get(key, default)
+
+
+async def check_single_internet_domain(domain):
+    """
+    Check internet connectivity using HTTP request (more reliable than ping)
+    
+    Args:
+        domain: Domain to check (e.g., 'google.com')
+        
+    Returns:
+        dict: {'success': bool, 'domain': str, 'response_time': float, 'message': str}
+    """
+    start_time = time.time()
+    
+    try:
+        import aiohttp
+        import ssl
+        
+        # Create SSL context that allows self-signed certificates
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        
+        # Create connector with timeout
+        connector = aiohttp.TCPConnector(
+            limit=1,
+            ttl_dns_cache=0,  # Disable DNS cache to detect real network issues
+            use_dns_cache=False,
+            ssl=ssl_context
+        )
+        
+        timeout = aiohttp.ClientTimeout(total=5, connect=3)
+        
+        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
+            # Try to get a simple page from the domain
+            url = f"https://{domain}"
+            try:
+                async with session.head(url) as response:
+                    response_time = time.time() - start_time
+                    if response.status < 500:  # Any response except server error means internet is OK
+                        return {
+                            'success': True,
+                            'domain': domain,
+                            'response_time': response_time,
+                            'message': f'HTTP {response.status} from {domain} ({response_time:.1f}s)'
+                        }
+                    else:
+                        return {
+                            'success': False,
+                            'domain': domain,
+                            'response_time': response_time,
+                            'message': f'HTTP {response.status} from {domain} (server error)'
+                        }
+            except Exception as https_error:
+                # If HTTPS fails, try HTTP
+                url = f"http://{domain}"
+                try:
+                    async with session.head(url) as response:
+                        response_time = time.time() - start_time
+                        if response.status < 500:
+                            return {
+                                'success': True,
+                                'domain': domain,
+                                'response_time': response_time,
+                                'message': f'HTTP {response.status} from {domain} ({response_time:.1f}s)'
+                            }
+                        else:
+                            return {
+                                'success': False,
+                                'domain': domain,
+                                'response_time': response_time,
+                                'message': f'HTTP {response.status} from {domain} (server error)'
+                            }
+                except Exception as http_error:
+                    return {
+                        'success': False,
+                        'domain': domain,
+                        'response_time': time.time() - start_time,
+                        'message': f'Connection failed to {domain}: {str(http_error)}'
+                    }
+            
+    except Exception as e:
+        return {
+            'success': False,
+            'domain': domain,
+            'response_time': time.time() - start_time,
+            'message': f'Internet check error for {domain}: {str(e)}'
+        }
+
+
+async def check_internet_connectivity():
+    """
+    Check internet connectivity by pinging multiple domains concurrently
+    
+    Returns:
+        bool: True if at least one domain is reachable
+    """
+    global lastCheckInternetOK, internet_check_lock
+    
+    domains = ['google.com', 'x.com', 'microsoft.com']
+    
+    try:
+        # ol1(f"🌐 [INTERNET_CHECK] Starting connectivity check to {len(domains)} domains...")
+        
+        # Run all ping checks concurrently
+        tasks = [check_single_internet_domain(domain) for domain in domains]
+        # ol1(f"🌐 [INTERNET_CHECK] Created {len(tasks)} ping tasks, running concurrently...")
+        
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        # ol1(f"🌐 [INTERNET_CHECK] Got {len(results)} results from ping tasks")
+        
+        # Check if any succeeded
+        successful_domains = []
+        failed_domains = []
+        
+        for result in results:
+            if isinstance(result, dict) and result.get('success'):
+                successful_domains.append(result['domain'])
+            elif isinstance(result, dict):
+                failed_domains.append(f"{result['domain']}({result.get('message', 'unknown error')})")
+            else:
+                failed_domains.append(f"exception({str(result)})")
+        
+        if successful_domains:
+            # At least one domain is reachable - internet is OK
+            current_time = int(time.time())
+            with internet_check_lock:
+                lastCheckInternetOK = current_time
+            
+            ol1(f"🌐 [INTERNET_OK] Successfully pinged: {', '.join(successful_domains)} at {datetime.fromtimestamp(current_time).strftime('%H:%M:%S')}")
+            if failed_domains:
+                ol1(f"🟡 [INTERNET_PARTIAL] Failed domains: {', '.join(failed_domains)}")
+            return True
+        else:
+            # No domains reachable - internet is down
+            ol1(f"🔴 [INTERNET_DOWN] Failed to ping all domains: {', '.join(failed_domains)}")
+            return False
+    
+    except Exception as e:
+        ol1(f"💥 [INTERNET_ERROR] Internet connectivity check failed: {str(e)}")
+        import traceback
+        ol1(f"💥 [INTERNET_ERROR] Traceback: {traceback.format_exc()}")
+        return False
+
+
+def is_internet_ok():
+    """
+    Check if internet is OK based on recent connectivity check
+    
+    Returns:
+        bool: True if internet check was successful within INTERNET_VALIDITY_SECONDS
+    """
+    global lastCheckInternetOK, internet_check_lock
+    
+    current_time = int(time.time())
+    
+    with internet_check_lock:
+        time_since_last_check = current_time - lastCheckInternetOK
+        is_valid = time_since_last_check <= INTERNET_VALIDITY_SECONDS
+        
+        # if not is_valid and lastCheckInternetOK > 0:
+        #     ol1(f"⚠️ *** [INTERNET_STALE] Last internet check was {time_since_last_check}s ago (max {INTERNET_VALIDITY_SECONDS}s)")
+        
+        return is_valid
+
+
+async def internet_connectivity_loop():
+    """
+    Background loop to continuously check internet connectivity
+    Runs every INTERNET_CHECK_INTERVAL seconds
+    """
+    ol1(f"🌐 [INTERNET_THREAD] Starting internet connectivity monitoring (check every {INTERNET_CHECK_INTERVAL}s)")
+    
+    loop_count = 0
+    while True:
+        try:
+            loop_count += 1
+            # ol1(f"🔄 [INTERNET_LOOP] Iteration #{loop_count} starting...")
+            
+            await check_internet_connectivity()
+            
+            # ol1(f"⏰ [INTERNET_LOOP] Sleeping for {INTERNET_CHECK_INTERVAL}s...")
+            await asyncio.sleep(INTERNET_CHECK_INTERVAL)
+            
+        except asyncio.CancelledError:
+            ol1(f"🛑 [INTERNET_THREAD] Loop cancelled")
+            break
+        except Exception as e:
+            ol1(f"💥 [INTERNET_THREAD] Error in connectivity loop (iteration #{loop_count}): {str(e)}")
+            import traceback
+            ol1(f"💥 [INTERNET_THREAD] Traceback: {traceback.format_exc()}")
+            await asyncio.sleep(INTERNET_CHECK_INTERVAL)
+    
+    ol1(f"🌐 [INTERNET_THREAD] Loop ended after {loop_count} iterations")
+
 
 class AsyncMonitorService:
     """Main AsyncIO Monitor Service Class"""
@@ -208,7 +412,7 @@ class AsyncMonitorService:
                 }
                 self.db_pool = await asyncpg.create_pool(**pg_config)
                 self.db_type = 'postgresql'
-            ol1(f"[OK] [AsyncIO-T{self.thread_id}] Database pool initialized")
+            ol1(f"[OK] [Test-T{self.thread_id}] Database pool initialized")
             
             # HTTP session setup - optimized for 3000+ monitors
             timeout = aiohttp.ClientTimeout(total=HTTP_TIMEOUT, connect=10)
@@ -222,6 +426,12 @@ class AsyncMonitorService:
             # Distribute connection limit among threads
             thread_connection_limit = connection_limit // THREAD_COUNT if MULTI_THREAD_ENABLED else connection_limit
             
+            # Create SSL context that ignores certificate verification for web_content checks
+            import ssl
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            
             connector = aiohttp.TCPConnector(
                 limit=thread_connection_limit,
                 limit_per_host=connection_limit_per_host,
@@ -230,18 +440,19 @@ class AsyncMonitorService:
                 ttl_dns_cache=300,  # DNS cache for 5 minutes
                 use_dns_cache=True,
                 force_close=False,  # Keep connections alive for reuse
-                family=0  # Allow both IPv4 and IPv6
+                family=0,  # Allow both IPv4 and IPv6
+                ssl=ssl_context  # Ignore SSL certificate verification
             )
             
             self.http_session = aiohttp.ClientSession(
                 timeout=timeout,
                 connector=connector,
-                headers={'User-Agent': f'AsyncIO-Monitor-Service-T{self.thread_id}/2025'}
+                headers={'User-Agent': f'Test-Monitor-Service-T{self.thread_id}/2025'}
             )
-            ol1(f"[OK] [AsyncIO-T{self.thread_id}] HTTP session initialized")
+            ol1(f"[OK] [Test-T{self.thread_id}] HTTP session initialized")
             
         except Exception as e:
-            ol1(f"[ERROR] [AsyncIO-T{self.thread_id}] Initialization failed: {e}")
+            ol1(f"[ERROR] [Test-T{self.thread_id}] Initialization failed: {e}")
             raise
 
     async def cleanup(self):
@@ -257,9 +468,9 @@ class AsyncMonitorService:
                 else:
                     # asyncpg pool cleanup
                     await self.db_pool.close()
-            ol1(f"[OK] [AsyncIO-T{self.thread_id}] Cleanup completed")
+            ol1(f"[OK] [Test-T{self.thread_id}] Cleanup completed")
         except Exception as e:
-            ol1(f"[ERROR] [AsyncIO-T{self.thread_id}] Cleanup error: {e}")
+            ol1(f"[ERROR] [Test-T{self.thread_id}] Cleanup error: {e}")
 
     async def cache_refresh_loop(self):
         """
@@ -267,9 +478,17 @@ class AsyncMonitorService:
         Tôn trọng LIMIT và CHUNK để chỉ cache đúng subset cần thiết.
         """
         global all_monitor_items, last_get_all_monitor_items
+
+        
         while not self.shutdown_event.is_set():
             try:
-                time.sleep(1)
+                await asyncio.sleep(1)
+
+                # Nếu internet ko ok, thì không chạy tiếp
+                if not is_internet_ok():
+                    await asyncio.sleep(1)
+                    continue
+
                 # Query monitor items from DB với logic phù hợp với LIMIT/CHUNK
                 if LIMIT or CHUNK_INFO:
                     # Khi có LIMIT/CHUNK: chỉ lấy đúng subset cần thiết để tiết kiệm memory
@@ -327,10 +546,10 @@ class AsyncMonitorService:
                 chunk_info = f"CHUNK={CHUNK_INFO['number']}-{CHUNK_INFO['size']}" if CHUNK_INFO else ""
                 mode_info = f" ({limit_info} {chunk_info})".strip()
                 
-                ol1(f"[Cache] [AsyncIO-T{self.thread_id}] Refreshed cache: {total_count} total, {enabled_count} enabled{mode_info}")
+                ol1(f"[Cache] [Test-T{self.thread_id}] Refreshed cache: {total_count} total, {enabled_count} enabled{mode_info}")
                 
             except Exception as e:
-                ol1(f"[Cache] [AsyncIO-T{self.thread_id}] Cache refresh error: {e}")
+                ol1(f"[Cache] [Test-T{self.thread_id}] Cache refresh error: {e}")
             # Sleep 1 giây hoặc cho đến khi shutdown
             try:
                 await asyncio.wait_for(self.shutdown_event.wait(), timeout=1)
@@ -380,13 +599,13 @@ class AsyncMonitorService:
                 offset = CHUNK_INFO['offset']
                 limit = CHUNK_INFO['limit']
                 monitors = monitors[offset:offset + limit]
-                ol1(f"📦 [AsyncIO-T{self.thread_id}] Chunk #{CHUNK_INFO['number']}: {len(monitors)} monitors")
+                ol1(f"📦 [Test-T{self.thread_id}] Chunk #{CHUNK_INFO['number']}: {len(monitors)} monitors")
             
-            ol1(f"[PERF] [AsyncIO-T{self.thread_id}] Loaded {len(monitors)} enabled monitors")
+            ol1(f"[PERF] [Test-T{self.thread_id}] Loaded {len(monitors)} enabled monitors")
             return monitors
             
         except Exception as e:
-            olerror(f"[AsyncIO-T{self.thread_id}] Error loading monitors: {e}")
+            olerror(f"[Test-T{self.thread_id}] Error loading monitors: {e}")
             return []
 
     async def update_monitor_result(self, monitor_id, status):
@@ -444,8 +663,8 @@ class AsyncMonitorService:
                         await conn.execute(query, status, monitor_id)
                 
         except Exception as e:
-            ol1(f"[AsyncIO-T{self.thread_id}] Error updating monitor {monitor_id}: {e}", monitor_id)
-            olerror(f"[AsyncIO-T{self.thread_id}] Error updating monitor {monitor_id}: {e}", monitor_id)
+            ol1(f"[Test-T{self.thread_id}] Error updating monitor {monitor_id}: {e}", monitor_id)
+            olerror(f"[Test-T{self.thread_id}] Error updating monitor {monitor_id}: {e}", monitor_id)
 
     async def get_monitor_item_by_id_async(self, item_id):
         """Async version of get_monitor_item_by_id with cache (like threading version)"""
@@ -458,7 +677,7 @@ class AsyncMonitorService:
                 return item
         # Nếu không có trong cache hoặc cache hết hạn, fallback DB
         try:
-            ol1(f"*** Not cache, [AsyncIO-T{self.thread_id}] Getting monitor item {item_id} from DB", item_id)
+            ol1(f"*** Not cache, [Test-T{self.thread_id}] Getting monitor item {item_id} from DB", item_id)
             if self.db_type == 'mysql':
                 query = "SELECT * FROM monitor_items WHERE id = %s"
                 async with self.db_pool.acquire() as conn:
@@ -476,7 +695,7 @@ class AsyncMonitorService:
                     row = await conn.fetchrow(query, item_id)
                     return MonitorItemDict(dict(row)) if row else None
         except Exception as e:
-            ol1(f"❌ [AsyncIO-T{self.thread_id}] Error getting monitor item {item_id}: {e}")
+            ol1(f"❌ [Test-T{self.thread_id}] Error getting monitor item {item_id}: {e}")
             raise
 
     async def calculate_and_update_delta_time(self, monitor_id):
@@ -517,7 +736,7 @@ class AsyncMonitorService:
                 delta_str = "N/A"
         
         except Exception as e:
-            ol1(f"[ERROR] [AsyncIO-T{self.thread_id}] Delta time calculation error for monitor {monitor_id}: {e}")
+            ol1(f"[ERROR] [Test-T{self.thread_id}] Delta time calculation error for monitor {monitor_id}: {e}")
             delta_str = "ERR"
         
         # Update last check time
@@ -595,7 +814,13 @@ class AsyncMonitorService:
         """
         global all_monitor_items, global_running_monitors, global_monitor_lock
         while not self.shutdown_event.is_set():
+
             try:
+                # Nếu internet ko ok, thì không chạy tiếp
+                if not is_internet_ok():
+                    await asyncio.wait_for(self.shutdown_event.wait(), timeout=2)
+                    continue
+
                 async with self.manager_lock:  # Prevent race conditions
                     # 1. Kiểm tra các monitor đang theo dõi, nếu task done thì restart nếu còn enable
                     monitor_ids = list(self.monitor_tasks.keys())
@@ -606,13 +831,13 @@ class AsyncMonitorService:
                             if monitor_item and monitor_item.enable:
                                 with global_monitor_lock:
                                     if monitor_id not in global_running_monitors:
-                                        ol1(f"[MANAGER] [AsyncIO-T{self.thread_id}] Restarting monitor {monitor_id} with new config")
+                                        ol1(f"[MANAGER] [Test-T{self.thread_id}] Restarting monitor {monitor_id} with new config")
                                         new_task = asyncio.create_task(
                                             self.monitor_loop(monitor_item),
                                             name=f"Monitor-T{self.thread_id}-{monitor_id}-{getattr(monitor_item, 'name', monitor_id)}"
                                         )
                                     else:
-                                        # ol1(f"🚫 [SKIP] [AsyncIO-T{self.thread_id}] Monitor {monitor_id} restart skipped - already running globally")
+                                        # ol1(f"🚫 [SKIP] [Test-T{self.thread_id}] Monitor {monitor_id} restart skipped - already running globally")
                                         continue
                                 self.monitor_tasks[monitor_id] = new_task
                             else:
@@ -628,13 +853,13 @@ class AsyncMonitorService:
                             
                             # Chỉ tạo mới nếu thực sự không có task hoặc task đã kết thúc
                             if existing_task and existing_task.done():
-                                ol1(f"[MANAGER] [AsyncIO-T{self.thread_id}] Cleaning up finished task for monitor {item_id}")
+                                ol1(f"[MANAGER] [Test-T{self.thread_id}] Cleaning up finished task for monitor {item_id}")
                                 del self.monitor_tasks[item_id]
                             
                             # Kiểm tra lần cuối để tránh duplicate (local + global)
                             with global_monitor_lock:
                                 if item_id not in self.monitor_tasks and item_id not in global_running_monitors:
-                                    ol1(f"[MANAGER] [AsyncIO-T{self.thread_id}] Auto-starting newly enabled monitor {item_id} ({getattr(monitor_item, 'name', item_id)})")
+                                    ol1(f"[MANAGER] [Test-T{self.thread_id}] Auto-starting newly enabled monitor {item_id} ({getattr(monitor_item, 'name', item_id)})")
                                     new_task = asyncio.create_task(
                                         self.monitor_loop(monitor_item),
                                         name=f"Monitor-T{self.thread_id}-{item_id}-{getattr(monitor_item, 'name', item_id)}"
@@ -642,14 +867,14 @@ class AsyncMonitorService:
                                     self.monitor_tasks[item_id] = new_task
                                 # else:
                                 #     if item_id in global_running_monitors:
-                                #         ol1(f"🚫 [SKIP] [AsyncIO-T{self.thread_id}] Monitor {item_id} already running globally")
+                                #         ol1(f"🚫 [SKIP] [Test-T{self.thread_id}] Monitor {item_id} already running globally")
 
                 # Sleep 2 giây trước khi kiểm tra lại
                 await asyncio.wait_for(self.shutdown_event.wait(), timeout=2)
             except asyncio.TimeoutError:
                 continue
             except Exception as e:
-                ol1(f"[MANAGER] [AsyncIO-T{self.thread_id}] Manager loop error: {e}")
+                ol1(f"[MANAGER] [Test-T{self.thread_id}] Manager loop error: {e}")
 
     async def check_single_monitor(self, monitor_item):
         """Check a single monitor asynchronously (core checking logic)"""
@@ -660,10 +885,8 @@ class AsyncMonitorService:
             # Detailed logging like original service
             check_interval = getattr(monitor_item, 'check_interval_seconds', 60) or 60
             ol1(f"=== Checking: (ID: {monitor_item.id})", monitor_item, True)
-            ol1(f"Type: {monitor_item.type}", monitor_item)
-            ol1(f"URL: {monitor_item.url_check}", monitor_item)
-            ol1(f"Interval: {check_interval}s", monitor_item)
-            ol1(f"Async check with {MAX_CONCURRENT_CHECKS} max concurrent", monitor_item)
+            ol1(f"Type: {monitor_item.type}, Interval: {check_interval}s, URL: {monitor_item.url_check}", monitor_item)
+            # ol1(f"Async check with {MAX_CONCURRENT_CHECKS} max concurrent", monitor_item)
             
             try:
                 # Call appropriate async check function (same logic as original)
@@ -692,7 +915,7 @@ class AsyncMonitorService:
                 # Log check result immediately (để debug)
                 status_emoji = "✅" if result['success'] else "❌"
                 response_str = f"{result['response_time']:.1f}ms" if result['response_time'] else "N/A"
-                ol1(f"{status_emoji} Check Result: {result['success']} | {response_str} | {result.get('message', 'No message')}", monitor_item)
+                ol1(f"{status_emoji} Result: {result['success']} | {response_str} | {result.get('message', 'No message')}", monitor_item)
                 
                 # Update statistics
                 self.stats['total_checks'] += 1
@@ -710,16 +933,15 @@ class AsyncMonitorService:
                 
                 # Get average delta times
                 monitor_avg_delta = self.get_monitor_delta_time_average(monitor_id)
-                global_avg_delta = self.get_global_delta_time_average()
                 
                 # Log result (same format as original)
                 check_duration = (time.time() - check_start) * 1000
-                status_str = "[OK] SUCCESS" if result['success'] else "[ERROR] FAILED"
+                status_str = "[OK] " if result['success'] else " *** [ERROR] "
                 response_time = f"{result['response_time']:.1f}ms" if result['response_time'] else "N/A"
                 
                 # Log kết quả với both average delta times
-                ol1(f"[CHECK] [AsyncIO-T{self.thread_id}-{monitor_id}] {status_str} | {response_time} | "
-                    f"Check: {check_duration:.1f}ms | DTime = {cached_delta_time} | dTimeAverage = {monitor_avg_delta} | dTimeAverageGlobal = {global_avg_delta} | {monitor_item.name}", monitor_item)
+                ol1(f"[Test-Tid{self.thread_id}-{monitor_id}] {status_str} | RTime:{response_time} | "
+                    f"Check: {check_duration:.1f}ms | DTime = {cached_delta_time} | dTimeAverage = {monitor_avg_delta} ", monitor_item)
                 
                 # Log chi tiết message nếu có
                 if result.get('message'):
@@ -728,7 +950,7 @@ class AsyncMonitorService:
                 return result
                 
             except Exception as e:
-                olerror(f"[AsyncIO-T{self.thread_id}-{monitor_id}] Check failed: {e}")
+                olerror(f"[Test-T{self.thread_id}-{monitor_id}] Check failed: {e}")
                 self.stats['total_checks'] += 1
                 self.stats['failed_checks'] += 1
                 
@@ -752,16 +974,32 @@ class AsyncMonitorService:
         
         with global_monitor_lock:
             if monitor_id in global_running_monitors:
-                # ol1(f"🚫 [DUPLICATE] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor already running globally, skipping...")
+                # ol1(f"🚫 [DUPLICATE] [Test-T{self.thread_id}-{monitor_id}] Monitor already running globally, skipping...")
                 return
             global_running_monitors.add(monitor_id)
-            ol1(f"🔒 [LOCK] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor locked globally")
+            ol1(f"🔒 [LOCK] [Test-T{self.thread_id}-{monitor_id}] Monitor locked globally")
         
         try:
-            ol1(f"[START] [AsyncIO-T{self.thread_id}-{monitor_id}] Starting monitor: {monitor_item.name}")
-            ol1(f"[DEBUG] [AsyncIO-T{self.thread_id}-{monitor_id}] Task name: {asyncio.current_task().get_name()}")
+            ol1(f"[START] [Test-T{self.thread_id}-{monitor_id}] Starting monitor: {monitor_item.name}")
+            ol1(f"[DEBUG] [Test-T{self.thread_id}-{monitor_id}] Task name: {asyncio.current_task().get_name()}")
             
+            first_time_check = time.time()  # Record first check time for precise timing
+
             while not self.shutdown_event.is_set():
+
+                # Check Internet:
+                if not is_internet_ok():
+                    ol1(f"🔴 *** [INTERNET] [Test-T{self.thread_id}-{monitor_id}] Internet not available, skipping check .", monitor_item, True)
+                    # Wait longer when internet is down to avoid spam
+                    # await asyncio.sleep(10)
+                    try:
+                        await asyncio.wait_for(self.shutdown_event.wait(), timeout=15)
+                        return  # Shutdown requested
+                    except asyncio.TimeoutError:
+                        # Sleep 10:
+                        await asyncio.sleep(10)
+                        continue  # Check internet again after 5s
+
                 check_count += 1
                 timestamp = datetime.now().strftime('%H:%M:%S')
                 
@@ -774,12 +1012,12 @@ class AsyncMonitorService:
                 # Get global average for periodic logging
                 global_avg_delta = self.get_global_delta_time_average()
                 
-                ol1(f"[PERF] [AsyncIO-T{self.thread_id}-{monitor_id}] Check #{check_count} at {timestamp}, DTime = {delta_time}")
+                ol1(f"[PERF] [Test-T{self.thread_id}-{monitor_id}] Check #{check_count} at {timestamp}, DTime = {delta_time}")
                 
                 # Log global stats every 10 checks per monitor
                 if check_count % 10 == 0:
                     with delta_time_lock:
-                        ol1(f"[GLOBAL] [AsyncIO-T{self.thread_id}] Global Stats: Total checks = {global_check_count}, dTimeAverageGlobal = {global_avg_delta}")
+                        ol1(f"[GLOBAL] [Test-T{self.thread_id}] Global Stats: Total checks = {global_check_count}, dTimeAverageGlobal = {global_avg_delta}")
                 
                 # Check if monitor is paused (same logic as original)
                 should_pause = False
@@ -797,23 +1035,45 @@ class AsyncMonitorService:
                         pass
                 
                 if should_pause:
-                    ol1(f"⏸️ [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor paused until {monitor_item.stopTo}")
+                    ol1(f"⏸️ [Test-T{self.thread_id}-{monitor_id}] Monitor paused until {monitor_item.stopTo}", monitorItem=monitor_item)
                 else:
+
+                    ol1(f"▶️ Internet OK, proceeding with check...", monitor_item, True)
                     # Perform check
                     await self.check_single_monitor(monitor_item)
                 
-                # Wait for next check interval with config change detection
+                # Calculate next check time based on first_time_check and check_count
                 check_interval = getattr(monitor_item, 'check_interval_seconds', CHECK_INTERVAL)
                 if check_interval <= 0:
                     check_interval = CHECK_INTERVAL
                 
+                # Calculate when the next check should happen
+                next_check_time = first_time_check + (check_count * check_interval)
+                current_time = time.time()
+                
+                # If we're behind schedule, start next check immediately
+                if next_check_time <= current_time:
+                    ol1(f"⚡ [Test-T{self.thread_id}-{monitor_id}] Behind schedule, starting next check immediately", monitor_item)
+                    continue
+                
+                # Calculate how long we need to wait until next check
+                wait_until_next_check = next_check_time - current_time
+                
                 # Save original monitor item for config comparison
                 original_monitor_item = monitor_item
                 
-                # Sleep in n second intervals to check for config changes (same as threading version)
-                sleep_remaining = check_interval
-                while sleep_remaining > 0 and not self.shutdown_event.is_set():
-                    sleep_time = min(10, sleep_remaining)  # Sleep max 10 seconds at a time
+                # Sleep 1 second at a time until next check time
+                config_check_counter = 0
+                
+                while wait_until_next_check > 0 and not self.shutdown_event.is_set():
+
+                    if not is_internet_ok():
+                        ol1(f"🔴 *** [INTERNET] [Test-T{self.thread_id}-{monitor_id}] Internet not available during wait, skipping loop2 ", monitor_item, True)
+                        break  # Break to outer loop to re-check internet
+
+                    # Sleep 1 second at a time for precise timing
+                    sleep_time = min(1.0, wait_until_next_check)
+                    
                     
                     try:
                         await asyncio.wait_for(
@@ -823,41 +1083,55 @@ class AsyncMonitorService:
                         # Shutdown requested
                         return
                     except asyncio.TimeoutError:
-                        # Normal timeout, check for config changes
-                        sleep_remaining -= sleep_time
+                        # Normal 1-second timeout
+                        config_check_counter += 1
+                        wait_until_next_check -= sleep_time
                         
-                        try:
-                            # Check for configuration changes every 3 seconds (same as threading version)
-                            current_monitor_item = await self.get_monitor_item_by_id_async(original_monitor_item.id)
+                        # Check for configuration changes every CHECK_REFRESH_ITEM seconds (10 seconds)
+                        if config_check_counter >= CHECK_REFRESH_ITEM:
+                            config_check_counter = 0  # Reset counter
                             
-                            if current_monitor_item:
-                                has_changes, changes = self.compare_monitor_item_fields(original_monitor_item, current_monitor_item)
+                            try:
+                                # ol1(f"🔍 [Test-T{self.thread_id}-{monitor_id}] Checking config changes (every {CHECK_REFRESH_ITEM}s)")
+                                current_monitor_item = await self.get_monitor_item_by_id_async(original_monitor_item.id)
                                 
-                                if has_changes:
-                                    ol1(f"🔄 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} config changed:", monitor_item)
-                                    for change in changes:
-                                        ol1(f"  - {change}", monitor_item)
-                                    ol1(f"🔄 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} stopping by config changes...", monitor_item)
-                                    return  # Exit monitor loop to restart with new config
-                            else:
-                                ol1(f"🔄 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} not found in database, stopping...", monitor_item )
-                                return
-                                
-                        except Exception as e:
-                            ol1(f"⚠️ [AsyncIO-T{self.thread_id}-{monitor_id}] Error checking config changes for monitor {original_monitor_item.id}: {e}", monitor_item)
-                            # Continue monitoring even if config check fails
+                                if current_monitor_item:
+                                    has_changes, changes = self.compare_monitor_item_fields(original_monitor_item, current_monitor_item)
+                                    
+                                    if has_changes:
+                                        ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} config changed:", monitor_item)
+                                        for change in changes:
+                                            ol1(f"  - {change}", monitor_item)
+                                        ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} stopping by config changes...", monitor_item)
+                                        return  # Exit monitor loop to restart with new config
+                                    
+                                    # Update check for enable status
+                                    if not getattr(current_monitor_item, 'enable', 1):
+                                        ol1(f"🛑 [Test-T{self.thread_id}-{monitor_id}] Monitor disabled, stopping...", monitor_item)
+                                        return
+                                else:
+                                    ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} not found in database, stopping...", monitor_item)
+                                    return
+                                    
+                            except Exception as e:
+                                ol1(f"⚠️ [Test-T{self.thread_id}-{monitor_id}] Error checking config changes: {e}", monitor_item)
+                                # Continue monitoring even if config check fails
+                        
+                        # Recalculate remaining time (in case of time drift)
+                        current_time = time.time()
+                        wait_until_next_check = next_check_time - current_time
                 
         except asyncio.CancelledError:
-            ol1(f"[STOP] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor cancelled: {monitor_item.name}", monitor_item)
+            ol1(f"[STOP] [Test-T{self.thread_id}-{monitor_id}] Monitor cancelled: {monitor_item.name}", monitor_item)
         except Exception as e:
-            olerror(f"[AsyncIO-T{self.thread_id}-{monitor_id}] Monitor error: {e}", monitor_item)
+            olerror(f"[Test-T{self.thread_id}-{monitor_id}] Monitor error: {e}", monitor_item)
         finally:
             # Release global lock
             with global_monitor_lock:
                 if monitor_id in global_running_monitors:
                     global_running_monitors.remove(monitor_id)
-                    ol1(f"🔓 [UNLOCK] [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor unlocked globally", monitor_item)
-            ol1(f"🧹 [AsyncIO-T{self.thread_id}-{monitor_id}] Monitor cleanup: {monitor_item.name} (checks: {check_count})", monitor_item)
+                    ol1(f"🔓 [UNLOCK] [Test-T{self.thread_id}-{monitor_id}] Monitor unlocked globally", monitor_item)
+            ol1(f"🧹 [Test-T{self.thread_id}-{monitor_id}] Monitor cleanup: {monitor_item.name} (checks: {check_count})", monitor_item)
 
     async def start_monitoring(self):
         """Start monitoring all enabled monitors (async version of main manager)"""
@@ -868,12 +1142,12 @@ class AsyncMonitorService:
             # Load enabled monitors
             monitors = await self.get_enabled_monitors()
             if not monitors:
-                ol1(f"⚠️ [AsyncIO-T{self.thread_id}] No enabled monitors found")
+                ol1(f"⚠️ [Test-T{self.thread_id}] No enabled monitors found")
                 self.shutdown_event.set()
                 await cache_task
                 return
 
-            ol1(f"[START] [AsyncIO-T{self.thread_id}] Starting monitoring for {len(monitors)} monitors")
+            ol1(f"[START] [Test-T{self.thread_id}] Starting monitoring for {len(monitors)} monitors")
             ol1(f"[FAST] Max concurrent checks: {MAX_CONCURRENT_CHECKS}")
             ol1(f"🔗 Database pool size: {CONNECTION_POOL_SIZE}")
 
@@ -885,7 +1159,7 @@ class AsyncMonitorService:
                 )
                 self.monitor_tasks[monitor.id] = task
 
-            ol1(f"[OK] [AsyncIO-T{self.thread_id}] Created {len(self.monitor_tasks)} monitoring tasks")
+            ol1(f"[OK] [Test-T{self.thread_id}] Created {len(self.monitor_tasks)} monitoring tasks")
 
             # Start statistics reporter
             stats_task = asyncio.create_task(self.stats_reporter())
@@ -896,13 +1170,13 @@ class AsyncMonitorService:
             try:
                 await asyncio.gather(stats_task, manager_task)
             except asyncio.CancelledError:
-                ol1(f"[STOP] [AsyncIO-T{self.thread_id}] Monitoring cancelled")
+                ol1(f"[STOP] [Test-T{self.thread_id}] Monitoring cancelled")
             finally:
                 self.shutdown_event.set()
                 await cache_task
             
         except Exception as e:
-            olerror(f"[AsyncIO-T{self.thread_id}] Monitoring error: {e}")
+            olerror(f"[Test-T{self.thread_id}] Monitoring error: {e}")
             raise
 
     async def stats_reporter(self):
@@ -923,17 +1197,23 @@ class AsyncMonitorService:
                     # Get global average delta time for stats
                     global_avg_delta = self.get_global_delta_time_average()
                     
-                    ol1(f"[STATS] [AsyncIO-T{self.thread_id} Stats] Uptime: {uptime:.0f}s | "
+                    # Get internet status for stats
+                    internet_status = "OK" if is_internet_ok() else "DOWN"
+                    with internet_check_lock:
+                        last_check_ago = int(time.time()) - lastCheckInternetOK if lastCheckInternetOK > 0 else -1
+                    
+                    ol1(f"[STATS] [Test-T{self.thread_id} Stats] Uptime: {uptime:.0f}s | "
                         f"Checks: {total} | Success: {success} ({success_rate:.1f}%) | "
                         f"Failed: {failed} | Rate: {total/uptime*60:.1f} checks/min | "
-                        f"dTimeAverageGlobal: {global_avg_delta}")
+                        f"dTimeAverageGlobal: {global_avg_delta} | Internet: {internet_status}"
+                        f"{f' ({last_check_ago}s ago)' if last_check_ago >= 0 else ''}")
                     
         except asyncio.CancelledError:
-            ol1(f"[STOP] [AsyncIO-T{self.thread_id}] Stats reporter cancelled")
+            ol1(f"[STOP] [Test-T{self.thread_id}] Stats reporter cancelled")
 
     async def shutdown(self):
         """Graceful shutdown (same logic as original)"""
-        ol1(f"[STOP] [AsyncIO-T{self.thread_id}] Initiating graceful shutdown...")
+        ol1(f"[STOP] [Test-T{self.thread_id}] Initiating graceful shutdown...")
         
         # Signal shutdown
         self.shutdown_event.set()
@@ -941,7 +1221,7 @@ class AsyncMonitorService:
         # Cancel all monitoring tasks
         for task_id, task in self.monitor_tasks.items():
             if not task.done():
-                ol1(f"[STOP] [AsyncIO-T{self.thread_id}] Cancelling monitor task {task_id}")
+                ol1(f"[STOP] [Test-T{self.thread_id}] Cancelling monitor task {task_id}")
                 task.cancel()
         
         # Wait for tasks to finish with timeout
@@ -952,12 +1232,82 @@ class AsyncMonitorService:
                     timeout=10
                 )
             except asyncio.TimeoutError:
-                ol1(f"⚠️ [AsyncIO-T{self.thread_id}] Some monitor tasks did not finish within timeout")
+                ol1(f"⚠️ [Test-T{self.thread_id}] Some monitor tasks did not finish within timeout")
         
         # Cleanup resources
         await self.cleanup()
         
-        ol1(f"[OK] [AsyncIO-T{self.thread_id}] Graceful shutdown completed")
+        ol1(f"[OK] [Test-T{self.thread_id}] Graceful shutdown completed")
+
+# Dedicated Internet Connectivity Thread
+class InternetConnectivityThread:
+    """Dedicated thread for internet connectivity monitoring - independent of monitor threads"""
+    
+    def __init__(self):
+        self.thread = None
+        self.stop_event = threading.Event()
+        
+    def start(self):
+        """Start dedicated internet thread"""
+        def run_internet_thread():
+            # Create dedicated event loop for internet monitoring
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            try:
+                ol1("🌐 [INTERNET_THREAD] Starting dedicated internet connectivity thread")
+                loop.run_until_complete(self._run_internet_loop())
+            except Exception as e:
+                ol1(f"💥 [INTERNET_THREAD] Thread error: {e}")
+            finally:
+                loop.close()
+                ol1("🌐 [INTERNET_THREAD] Dedicated internet thread stopped")
+        
+        self.thread = threading.Thread(target=run_internet_thread, name="InternetThread", daemon=True)
+        self.thread.start()
+        ol1("🌐 [GLOBAL] Started dedicated internet connectivity thread")
+        
+    async def _run_internet_loop(self):
+        """Internal async loop for internet monitoring"""
+        loop_count = 0
+        
+        while not self.stop_event.is_set():
+            try:
+                loop_count += 1
+                # ol1(f"🔄 [INTERNET_LOOP] Iteration #{loop_count} starting...")
+                
+                await check_internet_connectivity()
+                
+                # ol1(f"⏰ [INTERNET_LOOP] Sleeping for {INTERNET_CHECK_INTERVAL}s...")
+                
+                # Sleep with early termination if stop requested
+                for _ in range(INTERNET_CHECK_INTERVAL):
+                    if self.stop_event.is_set():
+                        break
+                    await asyncio.sleep(1)
+                    
+            except Exception as e:
+                ol1(f"💥 [INTERNET_THREAD] Error in connectivity loop (iteration #{loop_count}): {str(e)}")
+                import traceback
+                ol1(f"💥 [INTERNET_THREAD] Traceback: {traceback.format_exc()}")
+                # Sleep on error but allow early termination
+                for _ in range(INTERNET_CHECK_INTERVAL):
+                    if self.stop_event.is_set():
+                        break
+                    await asyncio.sleep(1)
+        
+        ol1(f"🌐 [INTERNET_THREAD] Loop ended after {loop_count} iterations")
+        
+    def stop(self):
+        """Stop internet thread gracefully"""
+        if self.thread and self.thread.is_alive():
+            ol1("🛑 [INTERNET_THREAD] Stopping dedicated internet thread...")
+            self.stop_event.set()
+            self.thread.join(timeout=5)
+            if self.thread.is_alive():
+                ol1("⚠️ [INTERNET_THREAD] Thread did not stop gracefully")
+            else:
+                ol1("✅ [INTERNET_THREAD] Thread stopped successfully")
 
 # Multi-threading support for better CPU utilization
 class MultiThreadAsyncService:
@@ -979,7 +1329,7 @@ class MultiThreadAsyncService:
             asyncio.set_event_loop(loop)
             
             try:
-                ol1(f"🧵 [AsyncIO-Thread-{thread_id}] Starting with {len(monitors_chunk)} monitors")
+                ol1(f"🧵 [Test-Thread-{thread_id}] Starting with {len(monitors_chunk)} monitors")
                 
                 # Create service for this thread
                 service = AsyncMonitorService(thread_id)
@@ -988,12 +1338,12 @@ class MultiThreadAsyncService:
                 loop.run_until_complete(self.run_thread_service(service, monitors_chunk, thread_id))
                 
             except Exception as e:
-                olerror(f"[AsyncIO-Thread-{thread_id}] Service error: {e}")
+                olerror(f"[Test-Thread-{thread_id}] Service error: {e}")
             finally:
                 loop.close()
-                ol1(f"🧹 [AsyncIO-Thread-{thread_id}] Service cleanup completed")
+                ol1(f"🧹 [Test-Thread-{thread_id}] Service cleanup completed")
         
-        thread = threading.Thread(target=run_in_thread, name=f"AsyncIO-Thread-{thread_id}")
+        thread = threading.Thread(target=run_in_thread, name=f"Test-Thread-{thread_id}")
         thread.start()
         return thread
     
@@ -1013,7 +1363,7 @@ class MultiThreadAsyncService:
             async def shutdown_checker():
                 while not shutdown_flag.is_set():
                     await asyncio.sleep(0.5)
-                ol1(f"[STOP] [AsyncIO-T{thread_id}] Shutdown signal received")
+                ol1(f"[STOP] [Test-T{thread_id}] Shutdown signal received")
                 service.shutdown_event.set()
             
             # Start monitoring and shutdown checker concurrently
@@ -1035,7 +1385,7 @@ class MultiThreadAsyncService:
                     pass
                     
         except Exception as e:
-            olerror(f"[AsyncIO-Thread-{thread_id}] Service error: {e}")
+            olerror(f"[Test-Thread-{thread_id}] Service error: {e}")
             raise
         finally:
             await service.cleanup()
@@ -1138,22 +1488,35 @@ async def main_async():
         ol1(f"   Multi-Thread: {MULTI_THREAD_ENABLED}")
         ol1(f"   Thread Count: {THREAD_COUNT}")
         
-        # Choose between single-thread or multi-thread mode
-        if MULTI_THREAD_ENABLED and THREAD_COUNT > 1:
-            # Multi-thread mode for better CPU utilization
-            multi_service = MultiThreadAsyncService(THREAD_COUNT)
-            await multi_service.start_multi_thread()
-        else:
-            # Single-thread mode (simpler but less CPU utilization)
-            service = AsyncMonitorService(1)
-            
-            try:
-                await service.initialize()
-                await service.start_monitoring()
-            except KeyboardInterrupt:
-                ol1("[STOP] Keyboard interrupt received")
-            finally:
-                await service.shutdown()
+        # Start dedicated internet connectivity thread
+        internet_thread = InternetConnectivityThread()
+        internet_thread.start()
+        
+        try:
+            # Choose between single-thread or multi-thread mode
+            if MULTI_THREAD_ENABLED and THREAD_COUNT > 1:
+                # Multi-thread mode for better CPU utilization
+                multi_service = MultiThreadAsyncService(THREAD_COUNT)
+                
+                # Multi-thread mode for better CPU utilization
+                try:
+                    await multi_service.start_multi_thread()
+                except Exception as e:
+                    ol1(f"[ERROR] Service error: {e}")
+            else:
+                # Single-thread mode (simpler but less CPU utilization)
+                service = AsyncMonitorService(1)
+                
+                try:
+                    await service.initialize()
+                    await service.start_monitoring()
+                except KeyboardInterrupt:
+                    ol1("[STOP] Keyboard interrupt received")
+                finally:
+                    await service.shutdown()
+        finally:
+            # Stop dedicated internet connectivity thread
+            internet_thread.stop()
     
     except Exception as e:
         olerror(f"AsyncIO Main error: {e}")

@@ -76,3 +76,8 @@ User=root
 [Install]
 WantedBy=multi-user.target
 
+--------------
+
+Một tiến trình check mạng internet ok mới thực hiện các check khác
+bằng cách có 1 thread start lúc đầu, loop liên tục (delay 0.5 giây), ping 8.8.8.8, ping google.com, để ghi ra 1 lastCheckInternetSuccess = time()
+và các tiến trình check kia nếu lastCheckInternetSuccess quá 5 giây, thì coi như mạng đang bị ngắt, thì ko check nữa
