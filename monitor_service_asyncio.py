@@ -31,6 +31,9 @@ from utils import ol1, olerror, safe_get_env_int, safe_get_env_bool
 # Import database configuration
 from sql_helpers import get_database_config
 
+# TimescaleDB integration - embedded directly
+import json
+
 # Import async monitor check functions
 from async_monitor_checks import (
     ping_icmp_async,
@@ -45,6 +48,47 @@ from async_monitor_checks import (
     check_open_port_tcp_then_error_async,
     check_open_port_tcp_then_valid_async
 )
+
+# TimescaleDB Manager - embedded for simplicity
+class TimescaleDBManager:
+    """Simple TimescaleDB manager for monitor data"""
+    
+    def __init__(self, db_pool):
+        self.db_pool = db_pool
+        
+    async def insert_monitor_check(self, monitor_id, check_type, status, response_time, message, details=None):
+        """Insert monitor check result"""
+        if not TIMESCALEDB_ENABLED or not TIMESCALEDB_LOG_CHECKS:
+            return
+            
+        try:
+            query = """
+                INSERT INTO monitor_checks (time, monitor_id, check_type, status, response_time, message, details)
+                VALUES (NOW(), $1, $2, $3, $4, $5, $6)
+            """
+            details_json = json.dumps(details) if details else None
+            async with self.db_pool.acquire() as conn:
+                await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
+                await conn.execute(query, monitor_id, check_type, status, response_time, message, details_json)
+        except Exception as e:
+            print(f"❌ TimescaleDB insert error: {e}")
+    
+    async def insert_system_metric(self, metric_type, value, tags=None):
+        """Insert system metric"""
+        if not TIMESCALEDB_ENABLED or not TIMESCALEDB_LOG_METRICS:
+            return
+            
+        try:
+            query = """
+                INSERT INTO monitor_system_metrics (time, metric_type, value, tags)
+                VALUES (NOW(), $1, $2, $3)
+            """
+            tags_json = json.dumps(tags) if tags else None
+            async with self.db_pool.acquire() as conn:
+                await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
+                await conn.execute(query, metric_type, value, tags_json)
+        except Exception as e:
+            print(f"❌ TimescaleDB metric insert error: {e}")
 
 # Parse command line arguments (same as original)
 def parse_chunk_argument():
@@ -109,6 +153,12 @@ HTTP_TIMEOUT = safe_get_env_int('ASYNC_HTTP_TIMEOUT', 30)
 CHECK_INTERVAL = safe_get_env_int('ASYNC_CHECK_INTERVAL', 60)
 MULTI_THREAD_ENABLED = safe_get_env_bool('ASYNC_MULTI_THREAD', True)
 THREAD_COUNT = safe_get_env_int('ASYNC_THREAD_COUNT', min(4, multiprocessing.cpu_count()))
+
+# TimescaleDB Configuration
+TIMESCALEDB_ENABLED = safe_get_env_bool('TIMESCALEDB_ENABLED', False)
+TIMESCALEDB_SCHEMA = os.getenv('TIMESCALEDB_SCHEMA', 'glx_monitor_v2')
+TIMESCALEDB_LOG_CHECKS = safe_get_env_bool('TIMESCALEDB_LOG_CHECKS', True)
+TIMESCALEDB_LOG_METRICS = safe_get_env_bool('TIMESCALEDB_LOG_METRICS', True)
 
 # Config refresh constants
 CHECK_REFRESH_ITEM = 10  # Check config changes every 10 seconds
@@ -352,6 +402,7 @@ class AsyncMonitorService:
         self.db_pool = None
         self.db_type = None
         self.http_session = None
+        self.timescale_manager = None  # TimescaleDB manager
         self.semaphore = asyncio.Semaphore(MAX_CONCURRENT_CHECKS)
         self.monitor_tasks = {}
         self.shutdown_event = None  # Will be created in async context
@@ -412,6 +463,14 @@ class AsyncMonitorService:
                 }
                 self.db_pool = await asyncpg.create_pool(**pg_config)
                 self.db_type = 'postgresql'
+                
+                # Initialize TimescaleDB manager for PostgreSQL
+                if self.db_type == 'postgresql' and TIMESCALEDB_ENABLED:
+                    self.timescale_manager = TimescaleDBManager(self.db_pool)
+                    ol1(f"[OK] [Test-T{self.thread_id}] TimescaleDB enabled - Schema: {TIMESCALEDB_SCHEMA} | Checks: {TIMESCALEDB_LOG_CHECKS} | Metrics: {TIMESCALEDB_LOG_METRICS}")
+                elif self.db_type == 'postgresql':
+                    ol1(f"[INFO] [Test-T{self.thread_id}] TimescaleDB disabled (TIMESCALEDB_ENABLED={TIMESCALEDB_ENABLED})")
+                    
             ol1(f"[OK] [Test-T{self.thread_id}] Database pool initialized")
             
             # HTTP session setup - optimized for 3000+ monitors
@@ -928,6 +987,17 @@ class AsyncMonitorService:
                 status = 1 if result['success'] else -1
                 await self.update_monitor_result(monitor_id, status)
                 
+                # Log to TimescaleDB for time-series analytics
+                if self.timescale_manager:
+                    await self.timescale_manager.insert_monitor_check(
+                        monitor_id=monitor_id,
+                        check_type=monitor_item.type,
+                        status=status,
+                        response_time=result['response_time'],
+                        message=result.get('message', ''),
+                        details=result.get('details', {})
+                    )
+                
                 # Use cached delta time from check start (don't calculate again)
                 cached_delta_time = getattr(monitor_item, '_cached_delta_time', 'N/A')
                 
@@ -956,6 +1026,17 @@ class AsyncMonitorService:
                 
                 # Update database with error
                 await self.update_monitor_result(monitor_id, -1)
+                
+                # Log error to TimescaleDB
+                if self.timescale_manager:
+                    await self.timescale_manager.insert_monitor_check(
+                        monitor_id=monitor_id,
+                        check_type=monitor_item.type,
+                        status=-1,
+                        response_time=None,
+                        message=str(e),
+                        details={'error_type': 'exception', 'exception': str(type(e).__name__)}
+                    )
                 
                 return {
                     'success': False,
@@ -1179,6 +1260,72 @@ class AsyncMonitorService:
             olerror(f"[Test-T{self.thread_id}] Monitoring error: {e}")
             raise
 
+    async def collect_system_metrics(self):
+        """Collect system performance metrics and log to TimescaleDB"""
+        try:
+            import psutil
+            
+            # CPU metrics
+            cpu_percent = psutil.cpu_percent(interval=1)
+            await self.timescale_manager.insert_system_metric(
+                'cpu_usage_percent', cpu_percent, 
+                {'thread_id': self.thread_id, 'hostname': os.uname().nodename}
+            )
+            
+            # Memory metrics
+            memory = psutil.virtual_memory()
+            await self.timescale_manager.insert_system_metric(
+                'memory_usage_percent', memory.percent,
+                {'thread_id': self.thread_id, 'hostname': os.uname().nodename}
+            )
+            await self.timescale_manager.insert_system_metric(
+                'memory_used_bytes', memory.used,
+                {'thread_id': self.thread_id, 'hostname': os.uname().nodename}
+            )
+            
+            # Monitor service specific metrics
+            uptime = time.time() - self.stats['start_time']
+            check_rate = self.stats['total_checks'] / uptime * 60 if uptime > 0 else 0
+            success_rate = (self.stats['successful_checks'] / self.stats['total_checks'] * 100) if self.stats['total_checks'] > 0 else 0
+            
+            await self.timescale_manager.insert_system_metric(
+                'monitor_checks_per_minute', check_rate,
+                {'thread_id': self.thread_id, 'hostname': os.uname().nodename}
+            )
+            await self.timescale_manager.insert_system_metric(
+                'monitor_success_rate_percent', success_rate,
+                {'thread_id': self.thread_id, 'hostname': os.uname().nodename}
+            )
+            await self.timescale_manager.insert_system_metric(
+                'monitor_total_checks', self.stats['total_checks'],
+                {'thread_id': self.thread_id, 'hostname': os.uname().nodename}
+            )
+            
+            # Internet connectivity status
+            internet_ok = 1 if is_internet_ok() else 0
+            await self.timescale_manager.insert_system_metric(
+                'internet_connectivity', internet_ok,
+                {'thread_id': self.thread_id, 'hostname': os.uname().nodename}
+            )
+            
+        except ImportError:
+            # psutil not available, collect basic metrics only
+            uptime = time.time() - self.stats['start_time']
+            check_rate = self.stats['total_checks'] / uptime * 60 if uptime > 0 else 0
+            success_rate = (self.stats['successful_checks'] / self.stats['total_checks'] * 100) if self.stats['total_checks'] > 0 else 0
+            
+            await self.timescale_manager.insert_system_metric(
+                'monitor_checks_per_minute', check_rate,
+                {'thread_id': self.thread_id, 'hostname': 'unknown'}
+            )
+            await self.timescale_manager.insert_system_metric(
+                'monitor_success_rate_percent', success_rate,
+                {'thread_id': self.thread_id, 'hostname': 'unknown'}
+            )
+            
+        except Exception as e:
+            olerror(f"Error collecting system metrics: {e}")
+
     async def stats_reporter(self):
         """Report statistics periodically (same as original but async)"""
         try:
@@ -1207,6 +1354,10 @@ class AsyncMonitorService:
                         f"Failed: {failed} | Rate: {total/uptime*60:.1f} checks/min | "
                         f"dTimeAverageGlobal: {global_avg_delta} | Internet: {internet_status}"
                         f"{f' ({last_check_ago}s ago)' if last_check_ago >= 0 else ''}")
+                    
+                    # Collect and log system metrics to TimescaleDB
+                    if self.timescale_manager:
+                        await self.collect_system_metrics()
                     
         except asyncio.CancelledError:
             ol1(f"[STOP] [Test-T{self.thread_id}] Stats reporter cancelled")
