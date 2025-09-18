@@ -1,0 +1,12 @@
+Chạy docker với hosts newwork
+
+docker run -d \
+  --name grafana \
+  --network host \
+  -e "GF_SECURITY_ADMIN_USER=admin" \
+  -e "GF_SECURITY_ADMIN_PASSWORD=admin123" \
+  -e "GF_SECURITY_ALLOW_EMBEDDING=true" \
+  -e "GF_AUTH_ANONYMOUS_ENABLED=true" \
+  -e "GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer" \
+  grafana/grafana:latest
+6a71aa11badd090155fdfca74234b0a18f57dbc7afa6a655fa4aa6cc5ce013c1

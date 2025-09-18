@@ -1,0 +1,150 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Monitor Service Dashboard",
+    "tags": ["monitor", "timescaledb"],
+    "style": "dark",
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Monitor Uptime Status",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "SELECT \n  monitor_id,\n  CASE WHEN status = 1 THEN 'UP' ELSE 'DOWN' END as status,\n  response_time,\n  message\nFROM glx_monitor_v2.monitor_checks \nWHERE time >= NOW() - INTERVAL '5 minutes'\nORDER BY time DESC\nLIMIT 10",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"options": {"UP": {"color": "green", "index": 0}}, "type": "value"},
+              {"options": {"DOWN": {"color": "red", "index": 1}}, "type": "value"}
+            ]
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Response Time Trends",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT \n  time_bucket('1 minute', time) AS time,\n  monitor_id,\n  AVG(response_time) as response_time\nFROM glx_monitor_v2.monitor_checks \nWHERE time >= $__timeFrom() AND time <= $__timeTo()\n  AND status = 1\nGROUP BY time_bucket('1 minute', time), monitor_id\nORDER BY time",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+        "fieldConfig": {
+          "defaults": {
+            "custom": {"drawStyle": "line", "lineInterpolation": "smooth"},
+            "unit": "ms"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Success Rate by Monitor",
+        "type": "bargauge",
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "SELECT \n  monitor_id,\n  COUNT(*) as total_checks,\n  COUNT(*) FILTER (WHERE status = 1) as successful_checks,\n  (COUNT(*) FILTER (WHERE status = 1)::decimal / COUNT(*) * 100) as uptime_percent\nFROM glx_monitor_v2.monitor_checks \nWHERE time >= $__timeFrom() AND time <= $__timeTo()\nGROUP BY monitor_id\nORDER BY monitor_id",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "steps": [
+                {"color": "red", "value": 0},
+                {"color": "yellow", "value": 95},
+                {"color": "green", "value": 99}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "System Metrics",
+        "type": "timeseries",
+        "targets": [
+          {
+            "expr": "",
+            "format": "time_series",
+            "rawSql": "SELECT \n  time_bucket('1 minute', time) AS time,\n  metric_type,\n  AVG(value) as value\nFROM glx_monitor_v2.monitor_system_metrics \nWHERE time >= $__timeFrom() AND time <= $__timeTo()\n  AND metric_type IN ('cpu_usage_percent', 'memory_usage_percent')\nGROUP BY time_bucket('1 minute', time), metric_type\nORDER BY time",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Check Rate (per minute)",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "SELECT \n  AVG(value) as checks_per_minute\nFROM glx_monitor_v2.monitor_system_metrics \nWHERE time >= $__timeFrom() AND time <= $__timeTo()\n  AND metric_type = 'monitor_checks_per_minute'",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+        "fieldConfig": {
+          "defaults": {
+            "unit": "cps",
+            "decimals": 1
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Internet Connectivity",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "",
+            "format": "table",
+            "rawSql": "SELECT \n  CASE WHEN AVG(value) > 0.5 THEN 'ONLINE' ELSE 'OFFLINE' END as status\nFROM glx_monitor_v2.monitor_system_metrics \nWHERE time >= NOW() - INTERVAL '5 minutes'\n  AND metric_type = 'internet_connectivity'",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"options": {"ONLINE": {"color": "green", "index": 0}}, "type": "value"},
+              {"options": {"OFFLINE": {"color": "red", "index": 1}}, "type": "value"}
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}
