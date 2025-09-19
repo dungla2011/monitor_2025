@@ -21,9 +21,10 @@ END $$;
 -- 3. Create base tables in monitor schema
 CREATE TABLE IF NOT EXISTS glx_monitor_v2.monitor_checks (
     time TIMESTAMPTZ NOT NULL,
-    monitor_id INTEGER NOT NULL,
+    monitor_id BIGINT NOT NULL,
+    user_id BIGINT NOT NULL,
     check_type TEXT NOT NULL,
-    status INTEGER NOT NULL, -- 1=success, -1=failure
+    status BIGINT NOT NULL, -- 1=success, -1=failure
     response_time DECIMAL(10,3), -- milliseconds
     message TEXT,
     details JSONB,
@@ -32,10 +33,10 @@ CREATE TABLE IF NOT EXISTS glx_monitor_v2.monitor_checks (
 
 CREATE TABLE IF NOT EXISTS glx_monitor_v2.monitor_stats_hourly (
     time TIMESTAMPTZ NOT NULL,
-    monitor_id INTEGER NOT NULL,
-    total_checks INTEGER DEFAULT 0,
-    successful_checks INTEGER DEFAULT 0,
-    failed_checks INTEGER DEFAULT 0,
+    monitor_id BIGINT NOT NULL,
+    total_checks BIGINT DEFAULT 0,
+    successful_checks BIGINT DEFAULT 0,
+    failed_checks BIGINT DEFAULT 0,
     avg_response_time DECIMAL(10,3),
     min_response_time DECIMAL(10,3),
     max_response_time DECIMAL(10,3),

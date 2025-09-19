@@ -55,21 +55,21 @@ class TimescaleDBManager:
     
     def __init__(self, db_pool):
         self.db_pool = db_pool
-        
-    async def insert_monitor_check(self, monitor_id, check_type, status, response_time, message, details=None):
+
+    async def insert_monitor_check(self, monitor_id, user_id, check_type, status, response_time, message, details=None):
         """Insert monitor check result"""
         if not TIMESCALEDB_ENABLED or not TIMESCALEDB_LOG_CHECKS:
             return
             
         try:
             query = """
-                INSERT INTO monitor_checks (time, monitor_id, check_type, status, response_time, message, details)
-                VALUES (NOW(), $1, $2, $3, $4, $5, $6)
+                INSERT INTO monitor_checks (time, monitor_id, user_id, check_type, status, response_time, message, details)
+                VALUES (NOW(), $1, $2, $3, $4, $5, $6, $7)
             """
             details_json = json.dumps(details) if details else None
             async with self.db_pool.acquire() as conn:
                 await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
-                await conn.execute(query, monitor_id, check_type, status, response_time, message, details_json)
+                await conn.execute(query, monitor_id, user_id, check_type, status, response_time, message, details_json)
         except Exception as e:
             print(f"❌ TimescaleDB insert error: {e}")
     
@@ -991,6 +991,7 @@ class AsyncMonitorService:
                 if self.timescale_manager:
                     await self.timescale_manager.insert_monitor_check(
                         monitor_id=monitor_id,
+                        user_id=monitor_item.user_id,
                         check_type=monitor_item.type,
                         status=status,
                         response_time=result['response_time'],
@@ -1031,6 +1032,7 @@ class AsyncMonitorService:
                 if self.timescale_manager:
                     await self.timescale_manager.insert_monitor_check(
                         monitor_id=monitor_id,
+                        user_id=monitor_item.user_id,
                         check_type=monitor_item.type,
                         status=-1,
                         response_time=None,
