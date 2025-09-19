@@ -37,6 +37,10 @@ def get_test_files(filter_patterns: List[str] = None) -> List[str]:
         for file in tests_dir.glob("*.py"):
             # Include all numbered test files, exclude current file (test runner)
             if re.match(r'^\d+\..*\.py$', file.name) and file.name != current_file:
+                # Skip files containing "async" in filename (for local tests only)
+                if "async" in file.name.lower():
+                    continue
+                
                 # Apply filter if provided
                 if filter_patterns:
                     # Check if filename contains any of the filter patterns

@@ -79,7 +79,9 @@ class APITester:
             print("   📋 Executing: python monitor_service.py start --test")
             self.server_process = subprocess.Popen([
                 "python", "monitor_service.py", "start", "--test"
-            ], creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
+            ], 
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),  # Run from parent directory
+            creationflags=subprocess.CREATE_NEW_CONSOLE if os.name == 'nt' else 0)
             
             # Wait longer for server to start (service has multiple threads)
             print("   ⏱️ Waiting 5 seconds for server startup...")

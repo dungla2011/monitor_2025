@@ -1,0 +1,92 @@
+{
+  "timestamp": "2025-09-19T15:53:51.297553",
+  "start_time": "2025-09-19T15:48:04.777377",
+  "end_time": "2025-09-19T15:53:51.297553",
+  "total_duration": 346.520176,
+  "service_type": "AsyncIO Monitor Service",
+  "summary": {
+    "total_test_files": 4,
+    "passed_files": 3,
+    "failed_files": 1,
+    "partial_files": 0,
+    "total_test_cases": 11,
+    "passed_test_cases": 10,
+    "overall_success_rate": 90.9090909090909
+  },
+  "test_results": [
+    {
+      "test_file": "03.test-api-endpoints-asyncio.py",
+      "status": "FAIL",
+      "passed": 0,
+      "total": 1,
+      "success_rate": 0.0,
+      "duration": 22.305355310440063,
+      "errors": [
+        "Failed to start AsyncIO API server: HTTPConnectionPool(host='localhost', port=5006): Read timed out. (read timeout=5)",
+        "Cannot proceed without server",
+        "FAIL | Start AsyncIO Server",
+        "Errors (1):"
+      ],
+      "successes": [
+        "AsyncIO API server stopped",
+        "Successes (1):"
+      ],
+      "summary": "Tests failed or could not run",
+      "return_code": 1
+    },
+    {
+      "test_file": "05.test-enable-disable-asyncio.py",
+      "status": "PASS",
+      "passed": 3,
+      "total": 3,
+      "success_rate": 100.0,
+      "duration": 62.562854528427124,
+      "errors": [],
+      "successes": [
+        "AsyncIO monitor service started successfully",
+        "Created test monitor with ID: 9",
+        "Monitor correctly not running (disabled)",
+        "Enabled monitor ID: 9",
+        "Monitor started successfully after enable (AsyncIO)"
+      ],
+      "summary": "All 3 tests passed",
+      "return_code": 0
+    },
+    {
+      "test_file": "06.test-webhook-alerts-asyncio.py",
+      "status": "PASS",
+      "passed": 4,
+      "total": 4,
+      "success_rate": 100.0,
+      "duration": 116.69502377510071,
+      "errors": [],
+      "successes": [
+        "AsyncIO test web server started on port 6001",
+        "AsyncIO webhook receiver started on port 7001",
+        "AsyncIO monitor service started successfully",
+        "Created AsyncIO test monitor (ID: 10) and webhook config (ID: 7)",
+        "Linked monitor 10 with webhook config 7"
+      ],
+      "summary": "All 4 tests passed",
+      "return_code": 0
+    },
+    {
+      "test_file": "07.test-telegram-alerts-asyncio.py",
+      "status": "PASS",
+      "passed": 3,
+      "total": 3,
+      "success_rate": 100.0,
+      "duration": 144.92008233070374,
+      "errors": [],
+      "successes": [
+        "✅ Loaded AsyncIO Telegram config from E:\\Projects\\monitor_2025\\.env.telegram",
+        "AsyncIO test web server started on port 6002",
+        "AsyncIO monitor service started successfully",
+        "Test Telegram message sent successfully",
+        "Created AsyncIO test monitor (ID: 11) and telegram config (ID: 8)"
+      ],
+      "summary": "All 3 tests passed",
+      "return_code": 0
+    }
+  ]
+}
