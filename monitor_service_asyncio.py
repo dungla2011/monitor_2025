@@ -1130,7 +1130,7 @@ class AsyncMonitorService:
         
         # Global duplicate prevention
         global global_running_monitors, global_monitor_lock
-        
+        config_check_counter = 0
         with global_monitor_lock:
             if monitor_id in global_running_monitors:
                 # ol1(f"🚫 [DUPLICATE] [Test-T{self.thread_id}-{monitor_id}] Monitor already running globally, skipping...")
@@ -1225,34 +1225,37 @@ class AsyncMonitorService:
                 original_monitor_item = monitor_item
                 
                 # Sleep 1 second at a time until next check time
-                config_check_counter = 0
+                last_config_check_time = time.time()
                 
-                while wait_until_next_check > 0 and not self.shutdown_event.is_set():
+                while not self.shutdown_event.is_set():
 
                     if not is_internet_ok():
                         ol1(f"🔴 *** [INTERNET] [Test-T{self.thread_id}-{monitor_id}] Internet not available during wait, skipping loop2 ", monitor_item, True)
                         break  # Break to outer loop to re-check internet
 
-                    # Sleep 1 second at a time for precise timing
-                    sleep_time = min(1.0, wait_until_next_check)
-                    
-                    
+                    # Always sleep 1 second (or until shutdown)
                     try:
                         await asyncio.wait_for(
                             self.shutdown_event.wait(), 
-                            timeout=sleep_time
+                            timeout=1.0
                         )
-                        # Shutdown requested
+                        # Shutdown requested during sleep
                         return
                     except asyncio.TimeoutError:
-                        # Normal 1-second timeout
-                        config_check_counter += 1
-                        wait_until_next_check -= sleep_time
+                        # Normal 1-second sleep completed, continue processing
+                        current_time = time.time()
+                        
+                        # Check if it's time for next check
+                        if current_time >= next_check_time:
+                            ol1(f"🔄 Break loop to check next :", monitor_item)
+                            break  # Time for next check
+
+                        # ol1(f"🔄 Debug1 {last_config_check_time} {current_time} :", monitor_item)
                         
                         # Check for configuration changes every CHECK_REFRESH_ITEM seconds (10 seconds)
-                        if config_check_counter >= CHECK_REFRESH_ITEM:
-                            config_check_counter = 0  # Reset counter
-                            
+                        if current_time - last_config_check_time >= CHECK_REFRESH_ITEM:
+                            last_config_check_time = current_time  # Reset timestamp
+                            # ol1(f"🔄 Debug2 {last_config_check_time} {current_time} :", monitor_item)
                             try:
                                 # ol1(f"🔍 [Test-T{self.thread_id}-{monitor_id}] Checking config changes (every {CHECK_REFRESH_ITEM}s)")
                                 current_monitor_item = await self.get_monitor_item_by_id_async(original_monitor_item.id)
@@ -1278,10 +1281,6 @@ class AsyncMonitorService:
                             except Exception as e:
                                 ol1(f"⚠️ [Test-T{self.thread_id}-{monitor_id}] Error checking config changes: {e}", monitor_item)
                                 # Continue monitoring even if config check fails
-                        
-                        # Recalculate remaining time (in case of time drift)
-                        current_time = time.time()
-                        wait_until_next_check = next_check_time - current_time
                 
         except asyncio.CancelledError:
             ol1(f"[STOP] [Test-T{self.thread_id}-{monitor_id}] Monitor cancelled: {monitor_item.name}", monitor_item)
@@ -1767,6 +1766,9 @@ async def main_async():
         # Start dedicated internet connectivity thread
         internet_thread = InternetConnectivityThread()
         internet_thread.start()
+ 
+        # Đợi 2 giây mới start các thread khác:
+        time.sleep(2) 
         
         # Start API server in separate thread
         import threading

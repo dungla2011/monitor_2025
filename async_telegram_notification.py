@@ -153,23 +153,317 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
 async def is_alert_time_allowed_async(user_id: int) -> tuple:
     """
     AsyncIO version of is_alert_time_allowed
-    For now, returns (True, "AsyncIO implementation") as placeholder
-    TODO: Implement actual user alert time checking logic
+    Kiểm tra xem hiện tại có được phép gửi alert hay không dựa trên settings của user
+    
+    Args:
+        user_id (int): ID của user
+        
+    Returns:
+        tuple: (is_allowed: bool, reason: str)
     """
-    # TODO: Implement async database query for user alert time settings
-    # This would need to query the database for user's alert time preferences
-    return (True, "AsyncIO implementation - always allowed for now")
+    try:
+        from datetime import datetime
+        import pytz
+        
+        # Get user monitor settings
+        settings = await get_monitor_settings_for_user_async(user_id)
+        if not settings:
+            # Không có settings -> cho phép gửi (default behavior)
+            return True, "No user settings found, allowing alerts"
+        
+        # Kiểm tra global_stop_alert_to
+        if settings.get('global_stop_alert_to'):
+            now_utc = datetime.utcnow()
+            if now_utc < settings['global_stop_alert_to']:
+                return False, f"Global alert stopped until {settings['global_stop_alert_to']}"
+        
+        # Kiểm tra alert_time_ranges
+        if settings.get('alert_time_ranges'):
+            # Xử lý timezone - có thể là số (GMT offset) hoặc string
+            timezone_value = settings.get('timezone')
+            if timezone_value is None:
+                timezone_value = 7  # Default GMT+7
+            
+            # Convert timezone number to timezone string
+            if isinstance(timezone_value, (int, float)):
+                timezone_map = {
+                    7: 'Asia/Ho_Chi_Minh',   # GMT+7 Vietnam, Laos, Cambodia
+                    0: 'UTC',                # GMT+0 UTC
+                    8: 'Asia/Shanghai',      # GMT+8 China, Singapore, Malaysia, Philippines
+                    9: 'Asia/Tokyo',         # GMT+9 Japan, South Korea
+                    5.5: 'Asia/Kolkata',     # GMT+5:30 India
+                    6: 'Asia/Dhaka',         # GMT+6 Bangladesh
+                    -5: 'America/New_York',  # GMT-5 EST (US East Coast)
+                    -8: 'America/Los_Angeles', # GMT-8 PST (US West Coast)
+                    -6: 'America/Chicago',   # GMT-6 CST (US Central)
+                    1: 'Europe/Berlin',      # GMT+1 Central Europe
+                    2: 'Europe/Helsinki',    # GMT+2 Eastern Europe
+                    3: 'Europe/Moscow',      # GMT+3 Moscow
+                    4: 'Asia/Dubai',         # GMT+4 UAE
+                    5: 'Asia/Karachi',       # GMT+5 Pakistan
+                    10: 'Australia/Sydney',  # GMT+10 Australia East
+                }
+                timezone_str = timezone_map.get(int(timezone_value), 'Asia/Ho_Chi_Minh')
+                ol1(f"🌍 [AsyncIO] User {user_id} timezone: GMT+{timezone_value} -> {timezone_str}")
+            elif isinstance(timezone_value, str):
+                timezone_str = timezone_value
+                ol1(f"🌍 [AsyncIO] User {user_id} timezone: {timezone_str}")
+            else:
+                timezone_str = 'Asia/Ho_Chi_Minh'
+                ol1(f"⚠️ [AsyncIO] Unknown timezone format for user {user_id}: {timezone_value}, using default")
+            
+            try:
+                tz = pytz.timezone(timezone_str)
+                now_local = datetime.now(tz)
+                current_time = now_local.strftime('%H:%M')
+                
+                # Parse alert_time_ranges: "05:30-23:00" hoặc "05:30-11:00,14:00-23:00" (multiple ranges)
+                time_ranges = [r.strip() for r in settings['alert_time_ranges'].split(',')]
+                
+                is_in_allowed_time = False
+                for time_range in time_ranges:
+                    if '-' not in time_range:
+                        continue
+                        
+                    start_time, end_time = time_range.split('-', 1)
+                    start_time = start_time.strip()
+                    end_time = end_time.strip()
+                    
+                    # Validate format H:M hoặc HH:MM
+                    if ':' not in start_time or ':' not in end_time:
+                        continue
+                    
+                    # Kiểm tra xem current_time có nằm trong range không
+                    if start_time <= current_time <= end_time:
+                        is_in_allowed_time = True
+                        break
+                
+                if not is_in_allowed_time:
+                    return False, f"Outside allowed time ranges: {settings['alert_time_ranges']} (current: {current_time} {timezone_str})"
+                
+            except Exception as tz_error:
+                ol1(f"⚠️ [AsyncIO] Timezone error for user {user_id}: {tz_error}")
+                # Lỗi timezone -> cho phép gửi để tránh miss alert
+                return True, "Timezone error, allowing alerts"
+        
+        return True, "Alert allowed"
+        
+    except Exception as e:
+        ol1(f"❌ [AsyncIO] Error checking alert time for user {user_id}: {e}")
+        # Lỗi -> cho phép gửi để tránh miss alert quan trọng
+        return True, "Error occurred, allowing alerts"
+
+
+async def get_monitor_settings_for_user_async(user_id: int) -> Optional[Dict[str, Any]]:
+    """
+    AsyncIO version of get_monitor_settings_for_user
+    Lấy monitor settings cho một user_id
+    
+    Args:
+        user_id (int): ID của user
+        
+    Returns:
+        dict: MonitorSettings data hoặc None nếu không tìm thấy
+    """
+    try:
+        # Import async database modules
+        import aiomysql
+        import asyncpg
+        from sql_helpers import get_database_config
+        
+        # Get database config
+        db_config = get_database_config()
+        
+        conn = None
+        if db_config['type'] == 'mysql':
+            # MySQL async connection
+            conn = await aiomysql.connect(
+                host=db_config['host'],
+                port=db_config['port'],
+                user=db_config['user'],
+                password=db_config['password'],
+                db=db_config['database'],
+                charset='utf8mb4',
+                autocommit=True
+            )
+            cursor = await conn.cursor()
+            
+            # Execute query
+            await cursor.execute("""
+                SELECT user_id, timezone, alert_time_ranges, global_stop_alert_to
+                FROM monitor_settings 
+                WHERE user_id = %s AND deleted_at IS NULL
+                LIMIT 1
+            """, (user_id,))
+            
+            row = await cursor.fetchone()
+            await cursor.close()
+            conn.close()
+            
+        else:
+            # PostgreSQL async connection
+            conn = await asyncpg.connect(
+                host=db_config['host'],
+                port=db_config['port'],
+                user=db_config['user'],
+                password=db_config['password'],
+                database=db_config['database']
+            )
+            
+            # Execute query
+            row = await conn.fetchrow("""
+                SELECT user_id, timezone, alert_time_ranges, global_stop_alert_to
+                FROM monitor_settings 
+                WHERE user_id = $1 AND deleted_at IS NULL
+                LIMIT 1
+            """, user_id)
+            
+            await conn.close()
+        
+        if not row:
+            return None
+            
+        # Convert row to dict
+        if db_config['type'] == 'mysql':
+            return {
+                'user_id': row[0],
+                'timezone': row[1],
+                'alert_time_ranges': row[2],
+                'global_stop_alert_to': row[3]
+            }
+        else:
+            # PostgreSQL row already dict-like
+            return dict(row)
+        
+    except Exception as e:
+        ol1(f"❌ [AsyncIO] Error getting monitor settings for user {user_id}: {e}")
+        if conn:
+            try:
+                if hasattr(conn, 'close'):
+                    if asyncio.iscoroutinefunction(conn.close):
+                        await conn.close()
+                    else:
+                        conn.close()
+            except:
+                pass
+        return None
 
 
 async def get_telegram_config_for_monitor_raw_async(monitor_id: int) -> Optional[Dict[str, Any]]:
     """
     AsyncIO version of get_telegram_config_for_monitor_raw
-    For now, returns None to fallback to .env config
-    TODO: Implement actual async database query for telegram config
+    Lấy cấu hình Telegram cho monitor item từ database
+    
+    Args:
+        monitor_id (int): ID của monitor item
+        
+    Returns:
+        dict: {'bot_token': str, 'chat_id': str} hoặc None
     """
-    # TODO: Implement async database query for telegram configuration
-    # This would need to query the database for monitor-specific telegram settings
-    return None
+    try:
+        # Import async database modules
+        import aiomysql
+        import asyncpg
+        from sql_helpers import get_database_config
+        
+        # Get database config
+        db_config = get_database_config()
+        
+        conn = None
+        if db_config['type'] == 'mysql':
+            # MySQL async connection
+            conn = await aiomysql.connect(
+                host=db_config['host'],
+                port=db_config['port'],
+                user=db_config['user'],
+                password=db_config['password'],
+                db=db_config['database'],
+                charset='utf8mb4',
+                autocommit=True
+            )
+            cursor = await conn.cursor()
+            
+            # Execute query
+            await cursor.execute("""
+                SELECT mc.alert_config, mc.name
+                FROM monitor_configs mc
+                JOIN monitor_and_configs mac ON mc.id = mac.config_id
+                WHERE mac.monitor_item_id = %s 
+                AND mc.alert_type = 'telegram'
+                AND mc.deleted_at IS NULL
+                LIMIT 1
+            """, (monitor_id,))
+            
+            row = await cursor.fetchone()
+            await cursor.close()
+            conn.close()
+            
+        else:
+            # PostgreSQL async connection
+            conn = await asyncpg.connect(
+                host=db_config['host'],
+                port=db_config['port'],
+                user=db_config['user'],
+                password=db_config['password'],
+                database=db_config['database']
+            )
+            
+            # Execute query
+            row = await conn.fetchrow("""
+                SELECT mc.alert_config, mc.name
+                FROM monitor_configs mc
+                JOIN monitor_and_configs mac ON mc.id = mac.config_id
+                WHERE mac.monitor_item_id = $1 
+                AND mc.alert_type = 'telegram'
+                AND mc.deleted_at IS NULL
+                LIMIT 1
+            """, monitor_id)
+            
+            await conn.close()
+        
+        if not row or not row[0]:
+            return None
+            
+        # Parse alert_config: <bot_token>,<chat_id>
+        alert_config = row[0].strip()
+        
+        if ',' not in alert_config:
+            return None
+            
+        parts = alert_config.split(',', 1)
+        if len(parts) != 2:
+            return None
+            
+        bot_token = parts[0].strip()
+        chat_id = parts[1].strip()
+        
+        # Validate format
+        if not bot_token or not chat_id:
+            return None
+            
+        if ':' not in bot_token:
+            return None
+            
+        if not (chat_id.lstrip('-').isdigit() or chat_id.startswith('@')):
+            return None
+            
+        return {
+            'bot_token': bot_token,
+            'chat_id': chat_id
+        }
+        
+    except Exception as e:
+        ol1(f"❌ [AsyncIO {monitor_id}] Error getting telegram config: {e}")
+        if conn:
+            try:
+                if hasattr(conn, 'close'):
+                    if asyncio.iscoroutinefunction(conn.close):
+                        await conn.close()
+                    else:
+                        conn.close()
+            except:
+                pass
+        return None
 
 
 async def reset_consecutive_error_on_enable(monitor_id: int):
