@@ -31,6 +31,9 @@ from utils import ol1, olerror, safe_get_env_int, safe_get_env_bool
 # Import database configuration
 from sql_helpers import get_database_config
 
+# Import API components
+from single_instance_api import MonitorAPI
+
 # TimescaleDB integration - embedded directly
 import json
 
@@ -134,6 +137,19 @@ def parse_limit_argument():
                 print(f"[ERROR] Invalid limit format: {limit_str}. Use format: --limit=500")
     
     return limit
+
+def get_api_port():
+    """Get API port, adjusted for chunk mode (AsyncIO version)"""
+    base_port = int(os.getenv('HTTP_PORT', 5005))
+    
+    if CHUNK_INFO:
+        # Offset port by chunk number to avoid conflicts
+        # Chunk 1 -> port 5005, Chunk 2 -> port 5006, etc.
+        chunk_port = base_port + (CHUNK_INFO['number'] - 1)
+        ol1(f"🌐 AsyncIO Chunk mode: API port adjusted to {chunk_port} for chunk #{CHUNK_INFO['number']}")
+        return chunk_port
+    
+    return base_port
 
 # Load environment variables
 if '--test' in sys.argv or 'test' in sys.argv:
@@ -1504,6 +1520,50 @@ class InternetConnectivityThread:
             else:
                 ol1("✅ [INTERNET_THREAD] Thread stopped successfully")
 
+
+def start_api_server_asyncio():
+    """Khởi động API server trong thread riêng cho AsyncIO service"""
+    try:
+        ol1("🔧 [AsyncIO] Initializing API server...")
+        port = get_api_port()  # Use chunk-aware port
+        host = os.getenv('HTTP_HOST', '127.0.0.1')
+
+        print(f"🌐 [AsyncIO] Starting API server at http://{host}:{port}")
+        
+        api = MonitorAPI(host=host, port=port)
+        
+        # Pass references for AsyncIO service
+        api.set_monitor_refs(
+            running_threads={},  # AsyncIO doesn't use running_threads, use empty dict
+            thread_alert_managers={},  # AsyncIO uses different alert system
+            get_all_monitor_items=get_all_monitor_items_asyncio,
+            shutdown_event=shutdown_flag  # Use global shutdown flag
+        )
+        
+        ol1("✅ [AsyncIO] API server initialized successfully")
+        api.start_server()
+    except Exception as e:
+        ol1(f"❌ [AsyncIO] API Server error: {e}")
+        import traceback
+        ol1(f"❌ [AsyncIO] Traceback: {traceback.format_exc()}")
+
+
+def get_all_monitor_items_asyncio():
+    """
+    Hàm helper để API có thể truy cập tất cả monitor items (AsyncIO version)
+    Sử dụng cache system của AsyncIO
+    """
+    global all_monitor_items
+    try:
+        # Return items from cache (same as AsyncIO service uses)
+        items = list(all_monitor_items.values()) if all_monitor_items else []
+        ol1(f"🔍 [AsyncIO API] Returning {len(items)} monitor items from cache")
+        return items
+    except Exception as e:
+        ol1(f"❌ [AsyncIO API] Error getting monitor items: {e}")
+        return []
+
+
 # Multi-threading support for better CPU utilization
 class MultiThreadAsyncService:
     """Run multiple AsyncIO event loops in separate threads for CPU utilization"""
@@ -1686,6 +1746,12 @@ async def main_async():
         # Start dedicated internet connectivity thread
         internet_thread = InternetConnectivityThread()
         internet_thread.start()
+        
+        # Start API server in separate thread
+        import threading
+        api_thread = threading.Thread(target=start_api_server_asyncio, daemon=True)
+        api_thread.start()
+        ol1("🌐 [AsyncIO] API server thread started")
         
         try:
             # Choose between single-thread or multi-thread mode
