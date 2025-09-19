@@ -6,7 +6,10 @@ Based on monitor_service.py's alert management but optimized for AsyncIO
 import asyncio
 import time
 from typing import Dict, Optional
+# Import ol1 for logging
+from utils import ol1, safe_get_env_int
 
+EXTENDED_ALERT_INTERVAL_MINUTES = safe_get_env_int('EXTENDED_ALERT_INTERVAL_MINUTES', 5)  # Số phút giãn alert sau khi quá ngưỡng (0 = không giãn)
 
 class AsyncAlertManager:
     """AsyncIO-compatible alert manager for tracking notifications and errors"""
@@ -16,6 +19,7 @@ class AsyncAlertManager:
         self.consecutive_error_count = 0
         self.thread_last_alert_time = 0
         self.thread_telegram_last_sent_alert = 0
+        self.thread_webhook_last_sent_alert = 0
         self._lock = asyncio.Lock()
     
     async def increment_consecutive_error(self):
@@ -36,6 +40,12 @@ class AsyncAlertManager:
     async def can_send_telegram_alert(self, throttle_seconds: int) -> bool:
         """Kiểm tra có thể gửi telegram alert không (basic throttling)"""
         async with self._lock:
+            # Sau 5 lần lỗi liên tiếp, thời gian tối thiểu là 5 phút nếu gửi tiếp
+            if self.consecutive_error_count >= 5:
+                throttle_seconds = max(throttle_seconds, EXTENDED_ALERT_INTERVAL_MINUTES * 60)  # Tối thiểu 5 phút
+                self.thread_telegram_last_sent_alert = time.time()  # Reset thời gian gửi alert
+                ol1(f"🔇 [AsyncIO {self.thread_id}] Throttling increased to {throttle_seconds}s due to {self.consecutive_error_count} consecutive errors", self.thread_id)
+
             current_time = time.time()
             return (current_time - self.thread_telegram_last_sent_alert) >= throttle_seconds
     
@@ -43,6 +53,22 @@ class AsyncAlertManager:
         """Đánh dấu đã gửi telegram alert"""
         async with self._lock:
             self.thread_telegram_last_sent_alert = time.time()
+    
+    async def can_send_webhook_alert(self, throttle_seconds: int) -> bool:
+        """Kiểm tra có thể gửi webhook alert không (basic throttling)"""
+        async with self._lock:
+            # Sau 5 lần lỗi liên tiếp, thời gian tối thiểu là 5 phút nếu gửi tiếp  
+            if self.consecutive_error_count >= 5:
+                throttle_seconds = max(throttle_seconds, EXTENDED_ALERT_INTERVAL_MINUTES * 60)  # Tối thiểu 5 phút
+                ol1(f"🔇 [AsyncIO {self.thread_id}] Webhook throttling increased to {throttle_seconds}s due to {self.consecutive_error_count} consecutive errors")
+
+            current_time = time.time()
+            return (current_time - self.thread_webhook_last_sent_alert) >= throttle_seconds
+    
+    async def mark_webhook_sent(self):
+        """Đánh dấu đã gửi webhook alert"""
+        async with self._lock:
+            self.thread_webhook_last_sent_alert = time.time()
     
     async def update_last_alert_time(self):
         """Cập nhật thời gian alert cuối cùng"""

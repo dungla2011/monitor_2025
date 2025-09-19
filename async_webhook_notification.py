@@ -14,6 +14,7 @@ from utils import ol1, olerror, safe_get_env_bool, safe_get_env_int
 WEBHOOK_ENABLED = safe_get_env_bool('WEBHOOK_ENABLED', True)
 WEBHOOK_TIMEOUT = safe_get_env_int('WEBHOOK_TIMEOUT', 10)
 WEBHOOK_MAX_RETRIES = safe_get_env_int('WEBHOOK_MAX_RETRIES', 2)
+WEBHOOK_THROTTLE_SECONDS = safe_get_env_int('WEBHOOK_THROTTLE_SECONDS', 30)
 
 
 async def send_webhook_alert_async(webhook_url, service_name, service_url, error_message, 
@@ -238,11 +239,28 @@ async def send_webhook_notification_async(monitor_item, is_error=True, error_mes
         webhook_url = webhook_config['webhook_url']
         webhook_name = webhook_config['webhook_name']
         
+        # Kiểm tra user alert time settings trước khi gửi
+        user_id = monitor_item.user_id if monitor_item.user_id else 0
+        
+        # Import is_alert_time_allowed_async from telegram notification module
+        from async_telegram_notification import is_alert_time_allowed_async
+        is_allowed, reason = await is_alert_time_allowed_async(user_id)
+        
+        if not is_allowed:
+            ol1(f"🔕 [AsyncIO {thread_id}] Webhook alert blocked for user {user_id}: {reason}", monitor_item)
+            return
+        else:
+            ol1(f"✅ [AsyncIO {thread_id}] Webhook alert allowed for user {user_id}: {reason}", monitor_item)
+        
         if is_error:
-            # Check if should send webhook alert (only first error)
-            consecutive_errors = await alert_manager.get_consecutive_error_count()
+            # Basic throttling (30 giây giữa các webhook notification giống nhau)
+            if not await alert_manager.can_send_webhook_alert(WEBHOOK_THROTTLE_SECONDS):
+                current_time = time.time()
+                remaining = WEBHOOK_THROTTLE_SECONDS - (current_time - alert_manager.thread_webhook_last_sent_alert)
+                ol1(f"🔇 [AsyncIO {thread_id}] Webhook throttle active {WEBHOOK_THROTTLE_SECONDS}s ({remaining:.0f}s remaining)", monitor_item)
+                return
             
-            # For now, always send webhook alert (can add throttling logic later)
+            consecutive_errors = await alert_manager.get_consecutive_error_count()
             enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
             
             result = await send_webhook_alert_async(
@@ -258,6 +276,8 @@ async def send_webhook_notification_async(monitor_item, is_error=True, error_mes
             )
             
             if result:
+                # Cập nhật thời gian gửi webhook
+                await alert_manager.mark_webhook_sent()
                 ol1(f"🪝 [AsyncIO {thread_id}] webhook alert sent successfully to {webhook_name}", monitor_item)
             else:
                 ol1(f"❌ [AsyncIO {thread_id}] webhook alert failed to {webhook_name}", monitor_item)

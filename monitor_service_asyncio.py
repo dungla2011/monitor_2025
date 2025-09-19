@@ -185,6 +185,9 @@ TIMESCALEDB_LOG_METRICS = safe_get_env_bool('TIMESCALEDB_LOG_METRICS', True)
 # Config refresh constants
 CHECK_REFRESH_ITEM = 10  # Check config changes every 10 seconds
 
+EXTENDED_ALERT_INTERVAL_MINUTES = safe_get_env_int('EXTENDED_ALERT_INTERVAL_MINUTES', 5)  # Số phút giãn alert sau khi quá ngưỡng (0 = không giãn)
+
+
 # Global state
 shutdown_flag = threading.Event()  # Thread-safe shutdown flag
 monitor_stats = {}
