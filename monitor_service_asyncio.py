@@ -49,6 +49,12 @@ from async_monitor_checks import (
     check_open_port_tcp_then_valid_async
 )
 
+# Import async telegram notification
+from async_telegram_notification import send_telegram_notification_async
+
+# Import async telegram notification
+from async_telegram_notification import send_telegram_notification_async
+
 # TimescaleDB Manager - embedded for simplicity
 class TimescaleDBManager:
     """Simple TimescaleDB manager for monitor data"""
@@ -987,6 +993,26 @@ class AsyncMonitorService:
                 status = 1 if result['success'] else -1
                 await self.update_monitor_result(monitor_id, status)
                 
+                # Send telegram notifications based on result
+                if result['success']:
+                    # Recovery notification if previous status was error
+                    previous_status = getattr(monitor_item, '_last_status', None)
+                    if previous_status == -1:
+                        await send_telegram_notification_async(
+                            monitor_item, 
+                            is_error=False, 
+                            response_time=result['response_time']
+                        )
+                    monitor_item._last_status = 1
+                else:
+                    # Error notification
+                    await send_telegram_notification_async(
+                        monitor_item, 
+                        is_error=True, 
+                        error_message=result.get('message', 'Unknown error')
+                    )
+                    monitor_item._last_status = -1
+                
                 # Log to TimescaleDB for time-series analytics
                 if self.timescale_manager:
                     await self.timescale_manager.insert_monitor_check(
@@ -1027,6 +1053,14 @@ class AsyncMonitorService:
                 
                 # Update database with error
                 await self.update_monitor_result(monitor_id, -1)
+                
+                # Send telegram error notification for exceptions
+                await send_telegram_notification_async(
+                    monitor_item, 
+                    is_error=True, 
+                    error_message=f"Exception: {str(e)}"
+                )
+                monitor_item._last_status = -1
                 
                 # Log error to TimescaleDB
                 if self.timescale_manager:
