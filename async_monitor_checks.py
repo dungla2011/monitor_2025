@@ -14,6 +14,7 @@ from datetime import datetime, timedelta
 from urllib.parse import urlparse
 import subprocess
 import platform
+import ping3
 
 # Import utils for logging
 from utils import ol1, olerror, format_response_time
@@ -25,7 +26,7 @@ RETRY_DELAY = 5.0  # 5 seconds between retries
 
 async def ping_icmp_async(monitor_item):
     """
-    Async ICMP ping check using subprocess
+    Async ICMP ping check using ping3 library
     With 2 retry attempts on failure
     
     Args:
@@ -53,12 +54,6 @@ async def ping_icmp_async(monitor_item):
             'details': {'hostname': url}
         }
     
-    # Determine ping command based on OS
-    if platform.system().lower() == 'windows':
-        cmd = ['ping', '-n', '1', '-w', '5000', hostname]  # 5 second timeout
-    else:
-        cmd = ['ping', '-c', '1', '-W', '5', hostname]  # 5 second timeout
-    
     last_error = None
     retry_messages = []
     
@@ -70,140 +65,166 @@ async def ping_icmp_async(monitor_item):
             if attempt > 0:
                 ol1(f"🔄 [ICMP RETRY] Attempt {attempt + 1}/{MAX_RETRIES + 1} for {hostname}", monitor_item)
             
-            # Run ping command asynchronously
-            process = await asyncio.create_subprocess_exec(
-                *cmd,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+            # Run ping3 in thread pool to avoid blocking
+            loop = asyncio.get_event_loop()
+            ping_result = await loop.run_in_executor(
+                None, 
+                lambda: ping3.ping(hostname, timeout=10, unit='ms')
             )
             
-            try:
-                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10)
-            except asyncio.TimeoutError:
-                process.kill()
-                response_time_ms = (time.time() - start_time) * 1000
-                error_msg = f'ICMP ping timeout after 10 seconds to {hostname}'
-                
-                if attempt < MAX_RETRIES:
-                    retry_messages.append(f"Attempt {attempt + 1}: {error_msg}")
-                    last_error = {
-                        'success': False,
-                        'response_time': None,
-                        'message': error_msg,
-                        'details': {'hostname': hostname, 'timeout': True, 'attempt': attempt + 1}
-                    }
-                    ol1(f"⏰ [ICMP TIMEOUT] Attempt {attempt + 1} timed out, retrying...", monitor_item)
-                    await asyncio.sleep(RETRY_DELAY)
-                    continue
-                else:
-                    return {
-                        'success': False,
-                        'response_time': None,
-                        'message': f'{error_msg} (after {MAX_RETRIES} retries)',
-                        'details': {
-                            'hostname': hostname, 
-                            'timeout': True,
-                            'retry_attempts': MAX_RETRIES,
-                            'retry_messages': retry_messages
-                        }
-                    }
+            total_time_ms = (time.time() - start_time) * 1000
             
-            response_time_ms = (time.time() - start_time) * 1000
-            stdout_str = stdout.decode('utf-8', errors='ignore')
-            stderr_str = stderr.decode('utf-8', errors='ignore')
-            
-            if process.returncode == 0:
-                # Try to extract actual ping time from output
-                actual_ping_time = None
-                
-                if platform.system().lower() == 'windows':
-                    # Windows: "time=1ms" or "time<1ms"
-                    time_match = re.search(r'time[<=](\d+)ms', stdout_str)
-                    if time_match:
-                        actual_ping_time = float(time_match.group(1))
-                else:
-                    # Linux/Unix: "time=1.234 ms"
-                    time_match = re.search(r'time=(\d+\.?\d*)\s*ms', stdout_str)
-                    if time_match:
-                        actual_ping_time = float(time_match.group(1))
-                
-                # Success! Add retry info if succeeded after retries
+            if ping_result is not None:
+                # Success! ping3 returns response time in ms
                 success_message = f'ICMP ping successful to {hostname}'
                 if attempt > 0:
                     success_message += f' (succeeded after {attempt} retries)'
                 
                 return {
                     'success': True,
-                    'response_time': actual_ping_time or response_time_ms,
+                    'response_time': ping_result,  # ping3 returns time in ms
                     'message': success_message,
                     'details': {
                         'hostname': hostname,
-                        'ping_time_ms': actual_ping_time,
-                        'total_time_ms': response_time_ms,
-                        'stdout': stdout_str.strip(),
+                        'ping_time_ms': ping_result,
+                        'total_time_ms': total_time_ms,
+                        'ping3_version': getattr(ping3, '__version__', 'unknown'),
                         'retry_attempts': attempt,
                         'retry_messages': retry_messages if retry_messages else None
                     }
                 }
             else:
-                # Ping failed
-                error_msg = f'ICMP ping failed to {hostname}: {stderr_str or stdout_str}'
+                # Ping failed (ping3 returns None on failure)
+                error_msg = f'ICMP ping failed to {hostname}: No response or timeout'
                 
                 if attempt < MAX_RETRIES:
                     retry_messages.append(f"Attempt {attempt + 1}: {error_msg}")
                     last_error = {
                         'success': False,
-                        'response_time': response_time_ms,
+                        'response_time': None,
                         'message': error_msg,
                         'details': {
                             'hostname': hostname,
-                            'return_code': process.returncode,
-                            'stdout': stdout_str.strip(),
-                            'stderr': stderr_str.strip(),
+                            'ping3_result': None,
+                            'total_time_ms': total_time_ms,
                             'attempt': attempt + 1
                         }
                     }
-                    ol1(f"🏓 [ICMP FAIL] Attempt {attempt + 1} failed (code {process.returncode}), retrying...", monitor_item)
+                    ol1(f"🏓 [ICMP FAIL] Attempt {attempt + 1} failed (no response), retrying...", monitor_item)
                     await asyncio.sleep(RETRY_DELAY)
                     continue
                 else:
                     return {
                         'success': False,
-                        'response_time': response_time_ms,
+                        'response_time': None,
                         'message': f'{error_msg} (after {MAX_RETRIES} retries)',
                         'details': {
                             'hostname': hostname,
-                            'return_code': process.returncode,
-                            'stdout': stdout_str.strip(),
-                            'stderr': stderr_str.strip(),
+                            'ping3_result': None,
+                            'total_time_ms': total_time_ms,
                             'retry_attempts': MAX_RETRIES,
                             'retry_messages': retry_messages
                         }
                     }
                 
-        except Exception as e:
-            response_time_ms = (time.time() - start_time) * 1000
-            error_msg = f'ICMP ping error: {str(e)}'
+        except ping3.errors.PingError as e:
+            total_time_ms = (time.time() - start_time) * 1000
+            error_msg = f'ICMP ping error (ping3): {str(e)}'
             
             if attempt < MAX_RETRIES:
                 retry_messages.append(f"Attempt {attempt + 1}: {error_msg}")
                 last_error = {
                     'success': False,
-                    'response_time': response_time_ms,
+                    'response_time': None,
                     'message': error_msg,
-                    'details': {'error': str(e), 'hostname': hostname, 'attempt': attempt + 1}
+                    'details': {
+                        'hostname': hostname,
+                        'ping3_error': str(e),
+                        'total_time_ms': total_time_ms,
+                        'attempt': attempt + 1
+                    }
                 }
-                ol1(f"💥 [ICMP ERROR] Attempt {attempt + 1} failed: {str(e)}, retrying...", monitor_item)
+                ol1(f"🏓 [ICMP PING3_ERROR] Attempt {attempt + 1} failed: {str(e)}, retrying...", monitor_item)
                 await asyncio.sleep(RETRY_DELAY)
                 continue
             else:
                 return {
                     'success': False,
-                    'response_time': response_time_ms,
+                    'response_time': None,
                     'message': f'{error_msg} (after {MAX_RETRIES} retries)',
                     'details': {
-                        'error': str(e), 
                         'hostname': hostname,
+                        'ping3_error': str(e),
+                        'total_time_ms': total_time_ms,
+                        'retry_attempts': MAX_RETRIES,
+                        'retry_messages': retry_messages
+                    }
+                }
+        except OSError as e:
+            # Network/permission errors
+            total_time_ms = (time.time() - start_time) * 1000
+            error_msg = f'ICMP ping OS error: {str(e)}'
+            
+            if attempt < MAX_RETRIES:
+                retry_messages.append(f"Attempt {attempt + 1}: {error_msg}")
+                last_error = {
+                    'success': False,
+                    'response_time': None,
+                    'message': error_msg,
+                    'details': {
+                        'hostname': hostname,
+                        'os_error': str(e),
+                        'total_time_ms': total_time_ms,
+                        'attempt': attempt + 1
+                    }
+                }
+                ol1(f"� [ICMP OS_ERROR] Attempt {attempt + 1} failed: {str(e)}, retrying...", monitor_item)
+                await asyncio.sleep(RETRY_DELAY)
+                continue
+            else:
+                return {
+                    'success': False,
+                    'response_time': None,
+                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'details': {
+                        'hostname': hostname,
+                        'os_error': str(e),
+                        'total_time_ms': total_time_ms,
+                        'retry_attempts': MAX_RETRIES,
+                        'retry_messages': retry_messages
+                    }
+                }
+        except Exception as e:
+            total_time_ms = (time.time() - start_time) * 1000
+            error_msg = f'ICMP ping unexpected error: {str(e)}'
+            
+            if attempt < MAX_RETRIES:
+                retry_messages.append(f"Attempt {attempt + 1}: {error_msg}")
+                last_error = {
+                    'success': False,
+                    'response_time': None,
+                    'message': error_msg,
+                    'details': {
+                        'hostname': hostname,
+                        'unexpected_error': str(e),
+                        'error_type': str(type(e).__name__),
+                        'total_time_ms': total_time_ms,
+                        'attempt': attempt + 1
+                    }
+                }
+                ol1(f"💥 [ICMP UNEXPECTED_ERROR] Attempt {attempt + 1} failed: {str(e)}, retrying...", monitor_item)
+                await asyncio.sleep(RETRY_DELAY)
+                continue
+            else:
+                return {
+                    'success': False,
+                    'response_time': None,
+                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'details': {
+                        'hostname': hostname,
+                        'unexpected_error': str(e),
+                        'error_type': str(type(e).__name__),
+                        'total_time_ms': total_time_ms,
                         'retry_attempts': MAX_RETRIES,
                         'retry_messages': retry_messages
                     }
