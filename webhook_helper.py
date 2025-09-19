@@ -71,7 +71,7 @@ def send_webhook_alert(webhook_url, service_name, service_url, error_message, al
         print(f"❌ Webhook connection error: {webhook_url}")
         return False
     except Exception as e:
-        print(f"❌ Webhook error: {e}")
+        print(f"❌ webhook alert: {e}")
         return False
 
 def send_webhook_recovery(webhook_url, service_name, service_url, recovery_message="Service is back online", **kwargs):

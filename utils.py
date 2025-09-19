@@ -22,7 +22,7 @@ class class_send_alert_of_thread:
         self.thread_telegram_last_sent_alert = 0  # timestamp lần cuối gửi alert
         self.thread_count_consecutive_error = 0   # số lỗi liên tiếp
         self.thread_last_alert_time = 0          # timestamp alert cuối cùng
-        self.thread_webhook_error_sent = False   # đã gửi webhook error chưa
+        self.thread_webhook_error_sent = False   # đã gửi webhook alert chưa
         self.thread_webhook_recovery_sent = False # đã gửi webhook recovery chưa
         self._lock = threading.Lock()            # Thread safety
     
@@ -79,14 +79,14 @@ class class_send_alert_of_thread:
     
     def should_send_webhook_error(self):
         """
-        Kiểm tra có nên gửi webhook error không (chỉ gửi lần đầu lỗi)
+        Kiểm tra có nên gửi webhook alert không (chỉ gửi lần đầu lỗi)
         """
         with self._lock:
             return not self.thread_webhook_error_sent
     
     def mark_webhook_error_sent(self):
         """
-        Đánh dấu đã gửi webhook error
+        Đánh dấu đã gửi webhook alert
         """
         with self._lock:
             self.thread_webhook_error_sent = True

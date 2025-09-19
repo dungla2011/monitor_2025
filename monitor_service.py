@@ -615,12 +615,12 @@ def send_webhook_notification(monitor_item, is_error=True, error_message="", res
         webhook_name = webhook_config['webhook_name']
         
         if is_error:
-            # Kiểm tra có nên gửi webhook error không (chỉ lần đầu lỗi)
+            # Kiểm tra có nên gửi webhook alert không (chỉ lần đầu lỗi)
             if not alert_manager.should_send_webhook_error():
-                ol1(f"🔕 [Thread {thread_id}] Webhook error already sent, skipping", monitor_item)
+                ol1(f"🔕 [Thread {thread_id}] webhook alert already sent, skipping", monitor_item)
                 return
             
-            # Gửi webhook error
+            # Gửi webhook alert
             consecutive_errors = alert_manager.get_consecutive_error_count()
             enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
             
@@ -638,9 +638,9 @@ def send_webhook_notification(monitor_item, is_error=True, error_message="", res
             
             if result:
                 alert_manager.mark_webhook_error_sent()
-                ol1(f"🪝 [Thread {thread_id}] Webhook error sent successfully to {webhook_name}", monitor_item)
+                ol1(f"🪝 [Thread {thread_id}] webhook alert sent successfully to {webhook_name}", monitor_item)
             else:
-                ol1(f"❌ [Thread {thread_id}] Webhook error failed to {webhook_name}", monitor_item)
+                ol1(f"❌ [Thread {thread_id}] webhook alert failed to {webhook_name}", monitor_item)
                 
         else:
             # Phục hồi - kiểm tra có nên gửi webhook recovery không
@@ -1006,7 +1006,7 @@ def monitor_service_thread(monitor_item):
                             is_error=True,
                             error_message=result['message']
                         )
-                        # Gửi webhook error
+                        # Gửi webhook alert
                         send_webhook_notification(
                             monitor_item=monitor_item,
                             is_error=True,

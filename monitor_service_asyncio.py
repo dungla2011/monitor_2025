@@ -1041,7 +1041,7 @@ class AsyncMonitorService:
                         is_error=True, 
                         error_message=result.get('message', 'Unknown error')
                     )
-                    # Send webhook error
+                    # Send webhook alert
                     await send_webhook_notification_async(
                         monitor_item, 
                         is_error=True, 
@@ -1090,13 +1090,13 @@ class AsyncMonitorService:
                 # Update database with error
                 await self.update_monitor_result(monitor_id, -1)
                 
-                # Send telegram and webhook error notification for exceptions
+                # Send telegram and webhook alert notification for exceptions
                 await send_telegram_notification_async(
                     monitor_item, 
                     is_error=True, 
                     error_message=f"Exception: {str(e)}"
                 )
-                # Send webhook error for exceptions
+                # Send webhook alert for exceptions
                 await send_webhook_notification_async(
                     monitor_item, 
                     is_error=True, 

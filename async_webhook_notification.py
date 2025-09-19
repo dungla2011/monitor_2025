@@ -239,10 +239,10 @@ async def send_webhook_notification_async(monitor_item, is_error=True, error_mes
         webhook_name = webhook_config['webhook_name']
         
         if is_error:
-            # Check if should send webhook error (only first error)
+            # Check if should send webhook alert (only first error)
             consecutive_errors = await alert_manager.get_consecutive_error_count()
             
-            # For now, always send webhook error (can add throttling logic later)
+            # For now, always send webhook alert (can add throttling logic later)
             enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
             
             result = await send_webhook_alert_async(
@@ -258,9 +258,9 @@ async def send_webhook_notification_async(monitor_item, is_error=True, error_mes
             )
             
             if result:
-                ol1(f"🪝 [AsyncIO {thread_id}] Webhook error sent successfully to {webhook_name}", monitor_item)
+                ol1(f"🪝 [AsyncIO {thread_id}] webhook alert sent successfully to {webhook_name}", monitor_item)
             else:
-                ol1(f"❌ [AsyncIO {thread_id}] Webhook error failed to {webhook_name}", monitor_item)
+                ol1(f"❌ [AsyncIO {thread_id}] webhook alert failed to {webhook_name}", monitor_item)
                 
         else:
             # Recovery
