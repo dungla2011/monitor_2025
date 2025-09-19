@@ -44,28 +44,28 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
             ol1(f"📊 [AsyncIO {thread_id}] Consecutive errors: {consecutive_errors}")
             
             # Kiểm tra check interval
-            check_interval_seconds = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
-            check_interval_minutes = check_interval_seconds / 60
+            # check_interval_seconds = monitor_item.check_interval_seconds if monitor_item.check_interval_seconds else 300
+            # check_interval_minutes = check_interval_seconds / 60
             
             # Logic giãn alert nếu:
             # 1. Check interval < 5 phút
             # 2. Lỗi liên tiếp >= 10 lần
             # 3. EXTENDED_ALERT_INTERVAL_MINUTES > 0
-            should_throttle_extended = (
-                check_interval_minutes < 5 and
-                consecutive_errors > CONSECUTIVE_ERROR_THRESHOLD and
-                EXTENDED_ALERT_INTERVAL_MINUTES > 0
-            )
+            # should_throttle_extended = (
+            #     check_interval_minutes < 5 and
+            #     consecutive_errors > CONSECUTIVE_ERROR_THRESHOLD and
+            #     EXTENDED_ALERT_INTERVAL_MINUTES > 0
+            # )
             
-            if should_throttle_extended:
-                # Kiểm tra thời gian gửi alert cuối cùng
-                if not await alert_manager.should_send_extended_alert(EXTENDED_ALERT_INTERVAL_MINUTES):
-                    time_since_last_alert = current_time - alert_manager.thread_last_alert_time
-                    remaining_minutes = (EXTENDED_ALERT_INTERVAL_MINUTES * 60 - time_since_last_alert) / 60
-                    ol1(f"🔕 [AsyncIO {thread_id}] Extended alert throttle active ({remaining_minutes:.1f}m remaining)", monitor_item)
-                    return
+            # if should_throttle_extended:
+            #     # Kiểm tra thời gian gửi alert cuối cùng
+            #     if not await alert_manager.should_send_extended_alert(EXTENDED_ALERT_INTERVAL_MINUTES):
+            #         time_since_last_alert = current_time - alert_manager.thread_last_alert_time
+            #         remaining_minutes = (EXTENDED_ALERT_INTERVAL_MINUTES * 60 - time_since_last_alert) / 60
+            #         ol1(f"🔕 [AsyncIO {thread_id}] Extended alert throttle active ({remaining_minutes:.1f}m remaining)", monitor_item)
+            #         return
                 
-                ol1(f"⚠️ [AsyncIO {thread_id}] Throttled alert (every {EXTENDED_ALERT_INTERVAL_MINUTES}m, {CONSECUTIVE_ERROR_THRESHOLD} consecutive errs)", monitor_item)
+            #     ol1(f"⚠️ [AsyncIO {thread_id}] Throttled alert (every {EXTENDED_ALERT_INTERVAL_MINUTES}m, {CONSECUTIVE_ERROR_THRESHOLD} consecutive errs)", monitor_item)
         
         else:
             # Phục hồi - reset counter lỗi liên tiếp
@@ -102,8 +102,7 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
         
         # Basic throttling (30 giây giữa các notification giống nhau)
         if not await alert_manager.can_send_telegram_alert(TELEGRAM_THROTTLE_SECONDS):
-            remaining = TELEGRAM_THROTTLE_SECONDS - (current_time - alert_manager.thread_telegram_last_sent_alert)
-            ol1(f"🔇 [AsyncIO {thread_id}] Basic throttle active {TELEGRAM_THROTTLE_SECONDS} ({remaining:.0f}s remaining)", monitor_item)
+            
             return
         
         # Cập nhật thời gian gửi

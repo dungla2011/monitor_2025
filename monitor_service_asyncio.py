@@ -322,7 +322,7 @@ async def check_internet_connectivity():
     """
     global lastCheckInternetOK, internet_check_lock
     
-    domains = ['google.com', 'x.com', 'microsoft.com']
+    domains = ['google.com', 'x.com', 'microsoft.com', 'vnexpress.net', 'github.com']
     
     try:
         # ol1(f"🌐 [INTERNET_CHECK] Starting connectivity check to {len(domains)} domains...")
@@ -1080,8 +1080,8 @@ class AsyncMonitorService:
                     f"Check: {check_duration:.1f}ms | DTime = {cached_delta_time} | dTimeAverage = {monitor_avg_delta} ", monitor_item)
                 
                 # Log chi tiết message nếu có
-                if result.get('message'):
-                    ol1(f"Message: {result['message']}", monitor_item)
+                # if result.get('message'):
+                #     ol1(f"Message: {result['message']}", monitor_item)
                 
                 return result
                 

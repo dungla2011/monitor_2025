@@ -255,9 +255,9 @@ async def send_webhook_notification_async(monitor_item, is_error=True, error_mes
         if is_error:
             # Basic throttling (30 giây giữa các webhook notification giống nhau)
             if not await alert_manager.can_send_webhook_alert(WEBHOOK_THROTTLE_SECONDS):
-                current_time = time.time()
-                remaining = WEBHOOK_THROTTLE_SECONDS - (current_time - alert_manager.thread_webhook_last_sent_alert)
-                ol1(f"🔇 [AsyncIO {thread_id}] Webhook throttle active {WEBHOOK_THROTTLE_SECONDS}s ({remaining:.0f}s remaining)", monitor_item)
+                # current_time = time.time()
+                # remaining = WEBHOOK_THROTTLE_SECONDS - (current_time - alert_manager.thread_webhook_last_sent_alert)
+                # ol1(f"🔇 [AsyncIO {thread_id}] Webhook throttle active {WEBHOOK_THROTTLE_SECONDS}s ({remaining:.0f}s remaining)", monitor_item)
                 return
             
             consecutive_errors = await alert_manager.get_consecutive_error_count()
