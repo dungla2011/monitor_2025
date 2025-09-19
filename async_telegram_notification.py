@@ -170,3 +170,24 @@ async def get_telegram_config_for_monitor_raw_async(monitor_id: int) -> Optional
     # TODO: Implement async database query for telegram configuration
     # This would need to query the database for monitor-specific telegram settings
     return None
+
+
+async def reset_consecutive_error_on_enable(monitor_id: int):
+    """
+    Reset consecutive error count khi monitor được enable lại (enable=0 → enable=1)
+    Điều này đảm bảo monitor không bị alert ngay lập tức với số lỗi cũ
+    
+    Args:
+        monitor_id (int): ID của monitor được enable lại
+    """
+    try:
+        alert_manager = await get_alert_manager(monitor_id)
+        consecutive_errors = await alert_manager.get_consecutive_error_count()
+        
+        if consecutive_errors > 0:
+            await alert_manager.reset_consecutive_error()
+            ol1(f"🔄 [AsyncIO {monitor_id}] Reset consecutive error count on re-enable (was: {consecutive_errors})")
+        else:
+            ol1(f"🔄 [AsyncIO {monitor_id}] Monitor re-enabled, consecutive error count already 0")
+    except Exception as e:
+        olerror(f"[AsyncIO {monitor_id}] Error resetting consecutive error count: {e}")

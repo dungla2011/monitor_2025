@@ -50,10 +50,7 @@ from async_monitor_checks import (
 )
 
 # Import async telegram notification
-from async_telegram_notification import send_telegram_notification_async
-
-# Import async telegram notification
-from async_telegram_notification import send_telegram_notification_async
+from async_telegram_notification import send_telegram_notification_async, reset_consecutive_error_on_enable
 
 # TimescaleDB Manager - embedded for simplicity
 class TimescaleDBManager:
@@ -897,6 +894,10 @@ class AsyncMonitorService:
                                 with global_monitor_lock:
                                     if monitor_id not in global_running_monitors:
                                         ol1(f"[MANAGER] [Test-T{self.thread_id}] Restarting monitor {monitor_id} with new config")
+                                        
+                                        # Reset consecutive error count khi monitor được restart
+                                        await reset_consecutive_error_on_enable(monitor_id)
+                                        
                                         new_task = asyncio.create_task(
                                             self.monitor_loop(monitor_item),
                                             name=f"Monitor-T{self.thread_id}-{monitor_id}-{getattr(monitor_item, 'name', monitor_id)}"
@@ -925,6 +926,10 @@ class AsyncMonitorService:
                             with global_monitor_lock:
                                 if item_id not in self.monitor_tasks and item_id not in global_running_monitors:
                                     ol1(f"[MANAGER] [Test-T{self.thread_id}] Auto-starting newly enabled monitor {item_id} ({getattr(monitor_item, 'name', item_id)})")
+                                    
+                                    # Reset consecutive error count khi monitor được enable lại
+                                    await reset_consecutive_error_on_enable(item_id)
+                                    
                                     new_task = asyncio.create_task(
                                         self.monitor_loop(monitor_item),
                                         name=f"Monitor-T{self.thread_id}-{item_id}-{getattr(monitor_item, 'name', item_id)}"
@@ -1099,6 +1104,9 @@ class AsyncMonitorService:
         try:
             ol1(f"[START] [Test-T{self.thread_id}-{monitor_id}] Starting monitor: {monitor_item.name}")
             ol1(f"[DEBUG] [Test-T{self.thread_id}-{monitor_id}] Task name: {asyncio.current_task().get_name()}")
+            
+            # Reset consecutive error count khi monitor được start
+            await reset_consecutive_error_on_enable(monitor_id)
             
             first_time_check = time.time()  # Record first check time for precise timing
 
