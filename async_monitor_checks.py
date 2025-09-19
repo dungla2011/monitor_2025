@@ -74,8 +74,8 @@ async def ping_icmp_async(monitor_item):
             
             total_time_ms = (time.time() - start_time) * 1000
             
-            if ping_result is not None:
-                # Success! ping3 returns response time in ms
+            if ping_result:
+                # Success! ping3 returns response time in ms (False = failure, None = error)
                 success_message = f'ICMP ping successful to {hostname}'
                 if attempt > 0:
                     success_message += f' (succeeded after {attempt} retries)'
@@ -94,7 +94,7 @@ async def ping_icmp_async(monitor_item):
                     }
                 }
             else:
-                # Ping failed (ping3 returns None on failure)
+                # Ping failed (ping3 returns False on timeout/unreachable, None on error)
                 error_msg = f'ICMP ping failed to {hostname}: No response or timeout'
                 
                 if attempt < MAX_RETRIES:
@@ -105,7 +105,7 @@ async def ping_icmp_async(monitor_item):
                         'message': error_msg,
                         'details': {
                             'hostname': hostname,
-                            'ping3_result': None,
+                            'ping3_result': ping_result,  # Store actual result (False or None)
                             'total_time_ms': total_time_ms,
                             'attempt': attempt + 1
                         }
