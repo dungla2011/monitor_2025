@@ -1247,7 +1247,7 @@ class AsyncMonitorService:
                         
                         # Check if it's time for next check
                         if current_time >= next_check_time:
-                            ol1(f"🔄 Break loop to check next :", monitor_item)
+                            ol1(f"Break loop...", monitor_item)
                             break  # Time for next check
 
                         # ol1(f"🔄 Debug1 {last_config_check_time} {current_time} :", monitor_item)

@@ -277,12 +277,11 @@ async def ping_web_async(monitor_item, session):
                 content_bytes = await response.content.read(max_content_size)
                 content = content_bytes.decode('utf-8', errors='ignore')
                 content_length = len(content_bytes)  # Actual bytes read
-                
-                # Log first 50 characters of content
-                content_preview = content[:50].replace('\n', '\\n').replace('\r', '\\r')
+                # Log first 100 characters of content
+                content_preview = content[:100].replace('\n', '\\n').replace('\r', '\\r')
                 retry_info = f" (after {attempt} retries)" if attempt > 0 else ""
-                ol1(f"📄 [WEB] {url} - Content preview (50 chars):\n{content_preview}\n | Size: {content_length} bytes{retry_info}", monitor_item)
-                
+                ol1(f"📄 [WEB] {url} - Content preview (100 chars):\n{content_preview}\n | Size: {content_length} bytes{retry_info}", monitor_item)
+
                 if response.status < 400:  # 200-399 are success
                     # Success! Add retry info if succeeded after retries
                     success_message = f'HTTP {response.status} - {response.reason}'
