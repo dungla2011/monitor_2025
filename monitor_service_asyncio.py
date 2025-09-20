@@ -89,6 +89,18 @@ class TimescaleDBManager:
             return
             
         try:
+            # Validate value to prevent numeric overflow
+            # PostgreSQL NUMERIC(15,6) can handle values up to 999,999,999.999999
+            max_value = 999999999.999999
+            if isinstance(value, (int, float)):
+                if abs(value) >= max_value:
+                    # Convert large values (like bytes) to more reasonable units
+                    if 'bytes' in metric_type:
+                        value = value / (1024 * 1024)  # Convert to MB
+                        metric_type = metric_type.replace('bytes', 'mb')
+                    else:
+                        value = min(max_value - 1, abs(value))  # Cap at max value
+                        
             query = """
                 INSERT INTO monitor_system_metrics (time, metric_type, value, tags)
                 VALUES (NOW(), $1, $2, $3)
@@ -98,7 +110,7 @@ class TimescaleDBManager:
                 await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                 await conn.execute(query, metric_type, value, tags_json)
         except Exception as e:
-            print(f"❌ TimescaleDB metric insert error: {e}")
+            print(f"❌ TimescaleDB metric insert error: {e} (metric: {metric_type}, value: {value})")
 
 # Parse command line arguments (same as original)
 def parse_chunk_argument():
@@ -553,6 +565,7 @@ class AsyncMonitorService:
                             query += f" LIMIT {LIMIT}"
                         
                         async with self.db_pool.acquire() as conn:
+                            await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                             rows = await conn.fetch(query)
                             all_monitors = [MonitorItemDict(dict(row)) for row in rows]
                             
@@ -575,6 +588,7 @@ class AsyncMonitorService:
                     else:
                         query = "SELECT * FROM monitor_items ORDER BY id"
                         async with self.db_pool.acquire() as conn:
+                            await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                             rows = await conn.fetch(query)
                             all_monitors = [MonitorItemDict(dict(row)) for row in rows]
                 
@@ -634,6 +648,7 @@ class AsyncMonitorService:
                         monitors = [MonitorItemDict(dict(zip(columns, row))) for row in rows]
             else:
                 async with self.db_pool.acquire() as conn:
+                    await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                     rows = await conn.fetch(query)
                     monitors = [MonitorItemDict(dict(row)) for row in rows]
             
@@ -692,6 +707,7 @@ class AsyncMonitorService:
                         WHERE id = $2
                     """
                     async with self.db_pool.acquire() as conn:
+                        await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                         await conn.execute(query, status, monitor_id)
                 else:  # Error
                     query = """
@@ -703,6 +719,7 @@ class AsyncMonitorService:
                         WHERE id = $2
                     """
                     async with self.db_pool.acquire() as conn:
+                        await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                         await conn.execute(query, status, monitor_id)
                 
         except Exception as e:
@@ -735,6 +752,7 @@ class AsyncMonitorService:
             else:  # PostgreSQL
                 query = "SELECT * FROM monitor_items WHERE id = $1"
                 async with self.db_pool.acquire() as conn:
+                    await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                     row = await conn.fetchrow(query, item_id)
                     return MonitorItemDict(dict(row)) if row else None
         except Exception as e:

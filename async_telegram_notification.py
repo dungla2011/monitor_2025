@@ -309,6 +309,9 @@ async def get_monitor_settings_for_user_async(user_id: int) -> Optional[Dict[str
                 database=db_config['database']
             )
             
+            # Set search path for schema
+            TIMESCALEDB_SCHEMA = os.getenv('TIMESCALEDB_SCHEMA', 'glx_monitor_v2')
+            await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
             # Execute query
             row = await conn.fetchrow("""
                 SELECT user_id, timezone, alert_time_ranges, global_stop_alert_to
@@ -406,6 +409,10 @@ async def get_telegram_config_for_monitor_raw_async(monitor_id: int) -> Optional
                 password=db_config['password'],
                 database=db_config['database']
             )
+            
+            # Set search path for schema
+            TIMESCALEDB_SCHEMA = os.getenv('TIMESCALEDB_SCHEMA', 'glx_monitor_v2')
+            await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
             
             # Execute query
             row = await conn.fetchrow("""
