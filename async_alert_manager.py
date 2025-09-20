@@ -43,13 +43,13 @@ class AsyncAlertManager:
             # Sau 5 lần lỗi liên tiếp, thời gian tối thiểu là 5 phút nếu gửi tiếp
             if self.consecutive_error_count > 5:
                 throttle_seconds = max(throttle_seconds, EXTENDED_ALERT_INTERVAL_MINUTES * 60)  # Tối thiểu 5 phút
-                ol1(f"🔇 [AsyncIO {self.thread_id}] Telegram throttling increased to {throttle_seconds}s due to {self.consecutive_error_count} consecutive errors", self.thread_id)
+                ol1(f"🔇 [Telegram {self.thread_id}] throttling increased to {throttle_seconds}s due to {self.consecutive_error_count} consecutive errors", self.thread_id)
 
             current_time = time.time()
             can = (current_time - self.thread_telegram_last_sent_alert) >= throttle_seconds
             if not can:
                 remaining = throttle_seconds - (current_time - self.thread_telegram_last_sent_alert)
-                ol1(f"🔇 [Telegram {self.thread_id}] {throttle_seconds} ({remaining:.0f}s remaining)", self.thread_id)
+                ol1(f"🔇 [Telegram {self.thread_id}] {throttle_seconds} still ({remaining:.0f}s remaining)", self.thread_id)
                 return False
             return True
     
@@ -64,13 +64,13 @@ class AsyncAlertManager:
             # Sau 5 lần lỗi liên tiếp, thời gian tối thiểu là 5 phút nếu gửi tiếp  
             if self.consecutive_error_count > 5:
                 throttle_seconds = max(throttle_seconds, EXTENDED_ALERT_INTERVAL_MINUTES * 60)  # Tối thiểu 5 phút
-                ol1(f"🔇 [AsyncIO {self.thread_id}] Webhook throttling increased to {throttle_seconds}s due to {self.consecutive_error_count} consecutive errors")
+                ol1(f"🔇 [Webhook {self.thread_id}] throttling increased to {throttle_seconds}s due to {self.consecutive_error_count} consecutive errors")
 
             current_time = time.time()
             can = (current_time - self.thread_webhook_last_sent_alert) >= throttle_seconds
             if not can:
                 remaining = throttle_seconds - (current_time - self.thread_webhook_last_sent_alert)
-                ol1(f"🔇 [Webhook {self.thread_id}] {throttle_seconds} ({remaining:.0f}s remaining)", self.thread_id)
+                ol1(f"🔇 [Webhook {self.thread_id}] {throttle_seconds} still ({remaining:.0f}s remaining)", self.thread_id)
                 return False
             return True
 

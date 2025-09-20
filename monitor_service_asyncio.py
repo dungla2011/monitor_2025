@@ -14,6 +14,7 @@ import asyncio
 import asyncpg
 import aiomysql
 import aiohttp
+import ping3
 import time
 import threading
 import os
@@ -227,7 +228,7 @@ class MonitorItemDict:
 
 async def check_single_internet_domain(domain):
     """
-    Check internet connectivity using HTTP request (more reliable than ping)
+    Check internet connectivity using ICMP ping (faster and lighter than HTTP)
     
     Args:
         domain: Domain to check (e.g., 'google.com')
@@ -238,78 +239,36 @@ async def check_single_internet_domain(domain):
     start_time = time.time()
     
     try:
-        import aiohttp
-        import ssl
-        
-        # Create SSL context that allows self-signed certificates
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        
-        # Create connector with timeout
-        connector = aiohttp.TCPConnector(
-            limit=1,
-            ttl_dns_cache=0,  # Disable DNS cache to detect real network issues
-            use_dns_cache=False,
-            ssl=ssl_context
+        # Run ping3 in thread pool to avoid blocking the event loop
+        loop = asyncio.get_event_loop()
+        ping_result = await loop.run_in_executor(
+            None, 
+            lambda: ping3.ping(domain, timeout=3, unit='ms')
         )
         
-        timeout = aiohttp.ClientTimeout(total=5, connect=3)
+        response_time = time.time() - start_time
         
-        async with aiohttp.ClientSession(connector=connector, timeout=timeout) as session:
-            # Try to get a simple page from the domain
-            url = f"https://{domain}"
-            try:
-                async with session.head(url) as response:
-                    response_time = time.time() - start_time
-                    if response.status < 500:  # Any response except server error means internet is OK
-                        return {
-                            'success': True,
-                            'domain': domain,
-                            'response_time': response_time,
-                            'message': f'HTTP {response.status} from {domain} ({response_time:.1f}s)'
-                        }
-                    else:
-                        return {
-                            'success': False,
-                            'domain': domain,
-                            'response_time': response_time,
-                            'message': f'HTTP {response.status} from {domain} (server error)'
-                        }
-            except Exception as https_error:
-                # If HTTPS fails, try HTTP
-                url = f"http://{domain}"
-                try:
-                    async with session.head(url) as response:
-                        response_time = time.time() - start_time
-                        if response.status < 500:
-                            return {
-                                'success': True,
-                                'domain': domain,
-                                'response_time': response_time,
-                                'message': f'HTTP {response.status} from {domain} ({response_time:.1f}s)'
-                            }
-                        else:
-                            return {
-                                'success': False,
-                                'domain': domain,
-                                'response_time': response_time,
-                                'message': f'HTTP {response.status} from {domain} (server error)'
-                            }
-                except Exception as http_error:
-                    return {
-                        'success': False,
-                        'domain': domain,
-                        'response_time': time.time() - start_time,
-                        'message': f'Connection failed to {domain}: {str(http_error)}'
-                    }
+        if ping_result:  # ping3 returns ms on success, False/None on failure
+            return {
+                'success': True,
+                'domain': domain,
+                'response_time': response_time,
+                'message': f'ICMP ping OK to {domain} ({ping_result:.1f}ms)'
+            }
+        else:
+            return {
+                'success': False,
+                'domain': domain, 
+                'response_time': response_time,
+                'message': f'ICMP ping failed to {domain} (timeout/unreachable)'
+            }
             
     except Exception as e:
         return {
             'success': False,
             'domain': domain,
             'response_time': time.time() - start_time,
-            'message': f'Internet check error for {domain}: {str(e)}'
+            'message': f'Ping error to {domain}: {str(e)}'
         }
 
 
