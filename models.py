@@ -35,6 +35,7 @@ class MonitorItem(Base):
     forceRestart = Column(Boolean, default=False)  # Boolean in PostgreSQL DB
     count_online = Column(Integer, default=0, nullable=False)  # NOT NULL in DB
     count_offline = Column(Integer, default=0, nullable=False)  # NOT NULL in DB
+    allow_alert_for_consecutive_error = Column(Integer, nullable=True)  # Extra column in DB
     
     def __repr__(self):
         return f"<MonitorItem(id={self.id}, name='{self.name}', type='{self.type}', enable={self.enable})>"

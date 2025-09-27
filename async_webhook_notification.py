@@ -229,7 +229,9 @@ async def send_webhook_notification_async(monitor_item, is_error=True, error_mes
         from async_alert_manager import get_alert_manager
         
         thread_id = monitor_item.id
-        alert_manager = await get_alert_manager(thread_id)
+        # Get allow_alert_for_consecutive_error from monitor_item (default to None if not present)
+        allow_consecutive = getattr(monitor_item, 'allow_alert_for_consecutive_error', None)
+        alert_manager = await get_alert_manager(thread_id, monitor_item.id, allow_consecutive)
         
         # Get webhook config
         webhook_config = await get_webhook_config_for_monitor_async(monitor_item.id)

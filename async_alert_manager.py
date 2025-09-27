@@ -13,11 +13,16 @@ EXTENDED_ALERT_INTERVAL_MINUTES = safe_get_env_int('EXTENDED_ALERT_INTERVAL_MINU
 TELEGRAM_THROTTLE_ENABLED = safe_get_env_bool('TELEGRAM_THROTTLE_ENABLED', True)  # True = chặn gửi liên tiếp (chỉ lần đầu), False = cho phép gửi liên tiếp
 WEBHOOK_THROTTLE_ENABLED = safe_get_env_bool('WEBHOOK_THROTTLE_ENABLED', True)  # True = chặn gửi liên tiếp (chỉ lần đầu), False = cho phép gửi liên tiếp
 
+
+# Removed get_monitor_item_by_id_async to avoid signal issues
+
 class AsyncAlertManager:
     """AsyncIO-compatible alert manager for tracking notifications and errors"""
     
-    def __init__(self, thread_id: int):
+    def __init__(self, thread_id: int, monitor_id: int, allow_consecutive_alert: bool = None):
         self.thread_id = thread_id
+        self.monitor_id = monitor_id
+        self.allow_consecutive_alert = allow_consecutive_alert  # None = use global TELEGRAM_THROTTLE_ENABLED
         self.consecutive_error_count = 0
         self.thread_last_alert_time = 0
         self.thread_telegram_last_sent_alert = 0
@@ -42,9 +47,13 @@ class AsyncAlertManager:
     async def can_send_telegram_alert(self, throttle_seconds: int) -> bool:
         """Kiểm tra có thể gửi telegram alert không với logic consecutive error control"""
         async with self._lock:
-            # TELEGRAM_THROTTLE_ENABLED = True: Chặn gửi liên tiếp (chỉ gửi lần đầu lỗi)
-            # TELEGRAM_THROTTLE_ENABLED = False: Cho phép gửi liên tiếp theo time throttle
-            if TELEGRAM_THROTTLE_ENABLED:
+            # Logic: allow_alert_for_consecutive_error = 1 -> cho phép gửi liên tiếp
+            #        allow_alert_for_consecutive_error != 1 (0 hoặc null) -> chỉ gửi lần đầu
+            throttle_enabled = self.allow_consecutive_alert != 1
+            
+            # throttle_enabled = True: Chặn gửi liên tiếp (chỉ gửi lần đầu lỗi)
+            # throttle_enabled = False: Cho phép gửi liên tiếp theo time throttle
+            if throttle_enabled:
                 # Chế độ throttle: chỉ gửi lần đầu lỗi (consecutive_error_count = 1)
                 if self.consecutive_error_count > 1:
                     ol1(f"🔇 [Telegram {self.thread_id}] Throttle mode: Skip consecutive error #{self.consecutive_error_count} (only send first error)", self.thread_id)
@@ -122,32 +131,37 @@ class AsyncAlertManagerRegistry:
     """Registry quản lý các AsyncAlertManager instance"""
     
     def __init__(self):
-        self._managers: Dict[int, AsyncAlertManager] = {}
+        self._managers: Dict[tuple, AsyncAlertManager] = {}  # Key: (thread_id, monitor_id)
         self._lock = asyncio.Lock()
     
-    async def get_alert_manager(self, thread_id: int) -> AsyncAlertManager:
-        """Lấy alert manager cho thread ID, tạo mới nếu chưa có"""
+    async def get_alert_manager(self, thread_id: int, monitor_id: int, allow_consecutive_alert: bool = None) -> AsyncAlertManager:
+        """Lấy alert manager cho thread ID và monitor ID, tạo mới nếu chưa có"""
+        key = (thread_id, monitor_id)
         async with self._lock:
-            if thread_id not in self._managers:
-                self._managers[thread_id] = AsyncAlertManager(thread_id)
-            return self._managers[thread_id]
+            if key not in self._managers:
+                self._managers[key] = AsyncAlertManager(thread_id, monitor_id, allow_consecutive_alert)
+            else:
+                # Update allow_consecutive_alert in existing manager (config might have changed)
+                self._managers[key].allow_consecutive_alert = allow_consecutive_alert
+            return self._managers[key]
     
-    async def cleanup_alert_manager(self, thread_id: int):
+    async def cleanup_alert_manager(self, thread_id: int, monitor_id: int):
         """Cleanup alert manager khi không còn cần thiết"""
+        key = (thread_id, monitor_id)
         async with self._lock:
-            if thread_id in self._managers:
-                del self._managers[thread_id]
+            if key in self._managers:
+                del self._managers[key]
 
 
 # Global registry instance
 alert_registry = AsyncAlertManagerRegistry()
 
 
-async def get_alert_manager(thread_id: int) -> AsyncAlertManager:
+async def get_alert_manager(thread_id: int, monitor_id: int, allow_consecutive_alert: bool = None) -> AsyncAlertManager:
     """Helper function để lấy alert manager"""
-    return await alert_registry.get_alert_manager(thread_id)
+    return await alert_registry.get_alert_manager(thread_id, monitor_id, allow_consecutive_alert)
 
 
-async def cleanup_alert_manager(thread_id: int):
+async def cleanup_alert_manager(thread_id: int, monitor_id: int):
     """Helper function để cleanup alert manager"""
-    await alert_registry.cleanup_alert_manager(thread_id)
+    await alert_registry.cleanup_alert_manager(thread_id, monitor_id)

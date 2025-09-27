@@ -853,7 +853,8 @@ class AsyncMonitorService:
             ('check_interval_seconds', 'check_interval_seconds'),
             ('result_valid', 'result_valid'),
             ('result_error', 'result_error'),
-            ('stopTo', 'stopTo')
+            ('stopTo', 'stopTo'),
+            ('allow_alert_for_consecutive_error', 'allow_alert_for_consecutive_error'),
             # ('forceRestart', 'forceRestart')  # Ignore to reduce unnecessary restarts
         ]
         
@@ -1154,7 +1155,7 @@ class AsyncMonitorService:
                         ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} config changed2:", monitor_item)
                         for change in changes:
                             ol1(f"  - {change}", monitor_item)
-                        ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} stopping by config changes2...", monitor_item)
+                        ol1(f"🔄 \n\n  [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} stopping by config changes2... \n\n ", monitor_item)
                         return  # Exit monitor loop to restart with new config
                     
                 check_count += 1
@@ -1259,7 +1260,7 @@ class AsyncMonitorService:
                                         ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} config changed:", monitor_item)
                                         for change in changes:
                                             ol1(f"  - {change}", monitor_item)
-                                        ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} stopping by config changes...", monitor_item)
+                                        ol1(f"🔄\n\n [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} stopping by config changes...\n\n", monitor_item)
                                         return  # Exit monitor loop to restart with new config
                                     
                                     # Update check for enable status

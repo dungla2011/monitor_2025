@@ -51,7 +51,7 @@ async def test_consecutive_error_buildup():
         await asyncio.sleep(0.1)  # Small delay
     
     # Check final count
-    alert_manager = await get_alert_manager(mock_item.id)
+    alert_manager = await get_alert_manager(mock_item.id, mock_item.id)
     count = await alert_manager.get_consecutive_error_count()
     print(f"✅ Built up {count} consecutive errors")
     return count
@@ -64,7 +64,7 @@ async def test_reset_consecutive_error():
     mock_item = MockMonitorItem()
     
     # Get current count
-    alert_manager = await get_alert_manager(mock_item.id)
+    alert_manager = await get_alert_manager(mock_item.id, mock_item.id)
     before_count = await alert_manager.get_consecutive_error_count()
     print(f"📊 Before reset: {before_count} consecutive errors")
     
@@ -92,7 +92,7 @@ async def test_reset_then_new_error():
     )
     
     # Check count
-    alert_manager = await get_alert_manager(mock_item.id)
+    alert_manager = await get_alert_manager(mock_item.id, mock_item.id)
     count = await alert_manager.get_consecutive_error_count()
     print(f"📊 New consecutive error count: {count}")
     
@@ -114,7 +114,7 @@ async def test_reset_then_recovery():
     )
     
     # Check count should be 0
-    alert_manager = await get_alert_manager(mock_item.id)
+    alert_manager = await get_alert_manager(mock_item.id, mock_item.id)
     count = await alert_manager.get_consecutive_error_count()
     print(f"📊 Count after recovery: {count}")
     
@@ -144,8 +144,8 @@ async def test_multiple_monitor_isolation():
         await asyncio.sleep(0.1)
     
     # Check both counts
-    alert1 = await get_alert_manager(monitor1.id)
-    alert2 = await get_alert_manager(monitor2.id)
+    alert1 = await get_alert_manager(monitor1.id, monitor1.id)
+    alert2 = await get_alert_manager(monitor2.id, monitor2.id)
     count1_before = await alert1.get_consecutive_error_count()
     count2_before = await alert2.get_consecutive_error_count()
     

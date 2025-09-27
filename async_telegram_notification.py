@@ -33,7 +33,10 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
     try:
         thread_id = monitor_item.id
         current_time = time.time()
-        alert_manager = await get_alert_manager(thread_id)
+        # Get allow_alert_for_consecutive_error from monitor_item (default to None if not present)
+        allow_consecutive = getattr(monitor_item, 'allow_alert_for_consecutive_error', None)
+        ol1(f"🔧 [AsyncIO {monitor_item.id}] Debug: allow_alert_for_consecutive_error = {allow_consecutive}", thread_id)
+        alert_manager = await get_alert_manager(thread_id, monitor_item.id, allow_consecutive)
         
         # Xử lý logic lỗi liên tiếp
         if is_error:
@@ -481,7 +484,7 @@ async def reset_consecutive_error_on_enable(monitor_id: int):
         monitor_id (int): ID của monitor được enable lại
     """
     try:
-        alert_manager = await get_alert_manager(monitor_id)
+        alert_manager = await get_alert_manager(monitor_id, monitor_id)
         consecutive_errors = await alert_manager.get_consecutive_error_count()
         
         if consecutive_errors > 0:
