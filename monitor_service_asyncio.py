@@ -323,7 +323,7 @@ async def check_internet_connectivity():
             with internet_check_lock:
                 lastCheckInternetOK = current_time
             
-            ol1(f"🌐 [INTERNET_OK] Successfully pinged: {', '.join(successful_domains)} at {datetime.fromtimestamp(current_time).strftime('%H:%M:%S')}")
+            ol1(f"🌐 [INTERNET_OK] Ping OK internet ")
             if failed_domains:
                 ol1(f"🟡 [INTERNET_PARTIAL] Failed domains: {', '.join(failed_domains)}")
             return True
