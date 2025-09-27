@@ -1,0 +1,26 @@
+[Unit]
+Description=GLX Monitor Service (AsyncIO)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/var/glx/monitor
+Environment=PATH=/var/glx/monitor/venv/bin
+ExecStart=/var/glx/monitor/venv/bin/python3 /var/glx/monitor/monitor_service_asyncio.py start
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Environment variables (if needed)
+# Environment="DB_HOST=localhost"
+# Environment="DB_PORT=5432"
+
+[Install]
+WantedBy=multi-user.target
