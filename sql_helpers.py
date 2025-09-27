@@ -351,6 +351,13 @@ def get_telegram_config_for_monitor_raw(monitor_id):
         conn = get_raw_connection()
         cursor = conn.cursor()
         
+        # Set search_path for schema
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()
+        schema_name = os.getenv('TIMESCALEDB_SCHEMA', 'public')
+        cursor.execute(f"SET search_path TO {schema_name}, public")
+        
         # Join 3 bảng để lấy telegram config
         cursor.execute("""
             SELECT mc.alert_config, mc.name
@@ -420,6 +427,13 @@ def get_webhook_config_for_monitor_raw(monitor_id):
         conn = get_raw_connection()
         cursor = conn.cursor()
         
+        # Set search_path for schema
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()
+        schema_name = os.getenv('TIMESCALEDB_SCHEMA', 'public')
+        cursor.execute(f"SET search_path TO {schema_name}, public")
+        
         cursor.execute("""
             SELECT mc.alert_config, mc.name
             FROM monitor_configs mc
@@ -470,6 +484,13 @@ def get_all_alert_configs_for_monitor_raw(monitor_id):
     try:
         conn = get_raw_connection()
         cursor = conn.cursor()
+        
+        # Set search_path for schema
+        from dotenv import load_dotenv
+        import os
+        load_dotenv()
+        schema_name = os.getenv('TIMESCALEDB_SCHEMA', 'public')
+        cursor.execute(f"SET search_path TO {schema_name}, public")
         
         cursor.execute("""
             SELECT mc.id, mc.name, mc.alert_type, mc.alert_config

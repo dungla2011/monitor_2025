@@ -1142,6 +1142,21 @@ class AsyncMonitorService:
                         await asyncio.sleep(10)
                         continue  # Check internet again after 5s
 
+
+                # Save original monitor item for config comparison
+                original_monitor_item = monitor_item
+                current_monitor_item = await self.get_monitor_item_by_id_async(original_monitor_item.id)
+
+                if current_monitor_item:
+                    has_changes, changes = self.compare_monitor_item_fields(original_monitor_item, current_monitor_item)
+                    
+                    if has_changes:
+                        ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} config changed2:", monitor_item)
+                        for change in changes:
+                            ol1(f"  - {change}", monitor_item)
+                        ol1(f"🔄 [Test-T{self.thread_id}-{monitor_id}] Monitor {original_monitor_item.id} stopping by config changes2...", monitor_item)
+                        return  # Exit monitor loop to restart with new config
+                    
                 check_count += 1
                 timestamp = datetime.now().strftime('%H:%M:%S')
                 
@@ -1201,14 +1216,11 @@ class AsyncMonitorService:
                 # Calculate how long we need to wait until next check
                 wait_until_next_check = next_check_time - current_time
                 
-                # Save original monitor item for config comparison
-                original_monitor_item = monitor_item
                 
                 # Sleep 1 second at a time until next check time
                 last_config_check_time = time.time()
                 
                 while not self.shutdown_event.is_set():
-
                     if not is_internet_ok():
                         ol1(f"🔴 *** [INTERNET] [Test-T{self.thread_id}-{monitor_id}] Internet not available during wait, skipping loop2 ", monitor_item, True)
                         break  # Break to outer loop to re-check internet
