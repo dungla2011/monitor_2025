@@ -293,7 +293,7 @@ async def check_internet_connectivity():
     """
     global lastCheckInternetOK, internet_check_lock
     
-    domains = ['google.com', 'x.com', 'microsoft.com', 'vnexpress.net', 'github.com']
+    domains = ['google.com', 'x.com', 'vnexpress.net', 'github.com']
     
     try:
         # ol1(f"🌐 [INTERNET_CHECK] Starting connectivity check to {len(domains)} domains...")
@@ -1277,15 +1277,14 @@ class AsyncMonitorService:
     async def start_monitoring(self):
         """Start monitoring all enabled monitors (async version of main manager)"""
         try:
-            # Start cache refresh background task
-            cache_task = asyncio.create_task(self.cache_refresh_loop())
+            # Worker threads NO LONGER refresh cache - dedicated thread handles this
+            ol1(f"⚙️ [Test-T{self.thread_id}] Worker thread - using shared cache from dedicated cache thread")
 
             # Load enabled monitors
             monitors = await self.get_enabled_monitors()
             if not monitors:
                 ol1(f"⚠️ [Test-T{self.thread_id}] No enabled monitors found")
                 self.shutdown_event.set()
-                await cache_task
                 return
 
             ol1(f"[START] [Test-T{self.thread_id}] Starting monitoring for {len(monitors)} monitors")
@@ -1314,7 +1313,6 @@ class AsyncMonitorService:
                 ol1(f"[STOP] [Test-T{self.thread_id}] Monitoring cancelled")
             finally:
                 self.shutdown_event.set()
-                await cache_task
             
         except Exception as e:
             olerror(f"[Test-T{self.thread_id}] Monitoring error: {e}")
@@ -1728,6 +1726,62 @@ def signal_handler(signum, frame):
 signal.signal(signal.SIGINT, signal_handler)
 signal.signal(signal.SIGTERM, signal_handler)
 
+async def dedicated_cache_refresh_service():
+    """
+    Dedicated cache refresh service - runs the existing cache_refresh_loop in a separate thread
+    Eliminates redundant cache refreshes from multiple worker threads
+    """
+    from sql_helpers import get_database_config
+    
+    # Create a temporary AsyncMonitorService instance for cache refresh
+    db_config = get_database_config()
+    
+    # Initialize database connection
+    if db_config['type'] == 'mysql':
+        db_pool = await aiomysql.create_pool(
+            host=db_config['host'],
+            port=db_config['port'],
+            user=db_config['user'],
+            password=db_config['password'],
+            db=db_config['database'],
+            charset='utf8mb4',
+            autocommit=True,
+            maxsize=5,
+            minsize=1
+        )
+        db_type = 'mysql'
+    else:
+        db_pool = await asyncpg.create_pool(
+            host=db_config['host'],
+            port=db_config['port'],
+            user=db_config['user'],
+            password=db_config['password'],
+            database=db_config['database'],
+            min_size=1,
+            max_size=5
+        )
+        db_type = 'postgresql'
+    
+    ol1("🔄 [CACHE_THREAD] Starting dedicated cache refresh service")
+    
+    # Create temporary service instance with minimal setup for cache refresh
+    cache_service = AsyncMonitorService(thread_id="CACHE")
+    cache_service.db_pool = db_pool
+    cache_service.db_type = db_type
+    cache_service.shutdown_event = asyncio.Event()
+    
+    try:
+        # Run the existing cache_refresh_loop method
+        await cache_service.cache_refresh_loop()
+    finally:
+        # Cleanup database pool
+        if db_type == 'mysql':
+            db_pool.close()
+            await db_pool.wait_closed()
+        else:
+            await db_pool.close()
+        ol1("🔄 [CACHE_THREAD] Cache refresh service stopped")
+
 async def main_async():
     """Main async function"""
     global shutdown_requested
@@ -1746,12 +1800,21 @@ async def main_async():
         # Start dedicated internet connectivity thread
         internet_thread = InternetConnectivityThread()
         internet_thread.start()
+        
+        # Start dedicated cache refresh thread
+        import threading
+        cache_thread = threading.Thread(
+            target=lambda: asyncio.run(dedicated_cache_refresh_service()),
+            name="CacheRefreshThread", 
+            daemon=True
+        )
+        cache_thread.start()
+        ol1("🔄 [AsyncIO] Dedicated cache refresh thread started")
  
         # Đợi 2 giây mới start các thread khác:
         time.sleep(2) 
         
         # Start API server in separate thread
-        import threading
         api_thread = threading.Thread(target=start_api_server_asyncio, daemon=True)
         api_thread.start()
         ol1("🌐 [AsyncIO] API server thread started")
