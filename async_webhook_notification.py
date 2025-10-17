@@ -263,7 +263,7 @@ async def send_webhook_notification_async(monitor_item, is_error=True, error_mes
                 return
             
             consecutive_errors = await alert_manager.get_consecutive_error_count()
-            enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
+            enhanced_error_message = f"{error_message} (Consecutive Error {consecutive_errors})"
             
             result = await send_webhook_alert_async(
                 webhook_url=webhook_url,

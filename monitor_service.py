@@ -556,9 +556,9 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
         # Gửi notification
         if is_error:
             consecutive_errors = alert_manager.get_consecutive_error_count()
-            enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
+            enhanced_error_message = f"{error_message} (Consecutive Error: {consecutive_errors})"
             
-            admin_domain = os.getenv('ADMIN_DOMAIN', 'monitor.mytree.vn')
+            admin_domain = os.getenv('ADMIN_DOMAIN', 'mon.lad.vn')
             result = send_telegram_alert(
                 bot_token=bot_token,
                 chat_id=chat_id,
@@ -572,7 +572,7 @@ def send_telegram_notification(monitor_item, is_error=True, error_message="", re
             else:
                 ol1(f"❌ [Thread {thread_id}] Telegram alert failed: {result['message']}", monitor_item)
         else:
-            admin_domain = os.getenv('ADMIN_DOMAIN', 'monitor.mytree.vn')
+            admin_domain = os.getenv('ADMIN_DOMAIN', 'mon.lad.vn')
             result = send_telegram_recovery(
                 bot_token=bot_token,
                 chat_id=chat_id,
@@ -620,7 +620,7 @@ def send_webhook_notification(monitor_item, is_error=True, error_message="", res
             
             # Gửi webhook alert
             consecutive_errors = alert_manager.get_consecutive_error_count()
-            enhanced_error_message = f"{error_message} (Lỗi liên tiếp: {consecutive_errors})"
+            enhanced_error_message = f"{error_message} (Consecutive Error {consecutive_errors})"
             
             result = send_webhook_alert(
                 webhook_url=webhook_url,

@@ -388,8 +388,8 @@ def get_telegram_config_for_monitor_raw(monitor_id):
         if len(parts) != 2:
             return None
             
-        bot_token = parts[0].strip()
-        chat_id = parts[1].strip()
+        bot_token = parts[1].strip()
+        chat_id = parts[0].strip()
         
         # Validate format
         if not bot_token or not chat_id:

@@ -96,7 +96,7 @@ python monitor_service.py test
 5. **Per-thread**: Mỗi service được theo dõi riêng biệt
 
 ## Telegram Message Enhancement
-Alert message sẽ bao gồm thông tin lỗi liên tiếp:
+Alert message sẽ bao gồm thông tin Consecutive Error
 ```
-❌ Service Error: Connection timeout (Lỗi liên tiếp: 15)
+❌ Service Error: Connection timeout (Consecutive Error 15)
 ```
