@@ -120,6 +120,7 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
             
             admin_domain = os.getenv('ADMIN_DOMAIN', 'mon.lad.vn')
             result = await send_telegram_alert_async(
+                monitor_item=monitor_item,
                 bot_token=bot_token,
                 chat_id=chat_id,
                 url_admin=f"https://{admin_domain}/member/monitor-item/edit/{monitor_item.id}",
@@ -134,7 +135,7 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
                 olerror(f"Telegram alert error details: {result}")
         else:
             admin_domain = os.getenv('ADMIN_DOMAIN', 'mon.lad.vn')
-            result = await send_telegram_recovery_async(
+            result = await send_telegram_recovery_async(monitor_item,
                 bot_token=bot_token,
                 chat_id=chat_id,
                 service_name=monitor_item.name,
@@ -149,7 +150,10 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
                 olerror(f"Telegram recovery error details: {result}")
                 
     except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
         ol1(f"❌ [AsyncIO {monitor_item.id}] Telegram notification error: {e}", monitor_item)
+        ol1(f"📍 Traceback:\n{error_traceback}", monitor_item)
 
 
 async def is_alert_time_allowed_async(user_id: int) -> tuple:

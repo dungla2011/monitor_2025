@@ -8,6 +8,7 @@ import asyncio
 import json
 import os
 from datetime import datetime
+from models import MonitorItem
 from utils import ol1, format_response_time, safe_get_env_int, safe_get_env_bool
 
 
@@ -119,7 +120,7 @@ async def send_telegram_message_async(bot_token: str, chat_id: str, message: str
         }
 
 
-async def send_telegram_alert_async(bot_token: str, chat_id: str, service_name: str, 
+async def send_telegram_alert_async(monitor_item: MonitorItem, bot_token: str, chat_id: str, service_name: str, 
                                    url_admin: str, service_url: str, error_message: str, 
                                    check_time=None):
     """
@@ -139,27 +140,41 @@ async def send_telegram_alert_async(bot_token: str, chat_id: str, service_name: 
     if check_time is None:
         check_time = datetime.now()
     
+    # Format check_interval_seconds thành dạng dễ đọc
+    interval_seconds = monitor_item.check_interval_seconds
+    if interval_seconds >= 86400:  # >= 1 day
+        interval_str = f"{interval_seconds / 86400:.1f}d"
+    elif interval_seconds >= 3600:  # >= 1 hour
+        interval_str = f"{interval_seconds / 3600:.1f}h"
+    elif interval_seconds >= 60:  # >= 1 minute
+        interval_str = f"{interval_seconds / 60:.0f}m"
+    else:
+        interval_str = f"{interval_seconds:.0f}s"
+    
     # Format tin nhắn với HTML
-    message = f"""🚨 <b>SERVICE ALERT</b> 🚨
+    message = f"""❌ <b>ALERT: {service_name}</b>
 
-📊 <b>Service:</b> {service_name}
 🌐 <b>URL:</b> {service_url}
+🕒 <b>Interval:</b> {interval_str}
 ❌ <b>Status:</b> DOWN
 ⚠️ <b>Error:</b> {error_message}
 🕒 <b>Time:</b> {check_time.strftime('%Y-%m-%d %H:%M:%S')}
 🔗 <b>Admin URL:</b> {url_admin}
+⚠️ <b>Send consecutive: </b> {monitor_item.allow_alert_for_consecutive_error} 
 
 Please check the service immediately!"""
 
     return await send_telegram_message_async(bot_token, chat_id, message)
 
 
-async def send_telegram_recovery_async(bot_token: str, chat_id: str, service_name: str, 
+async def send_telegram_recovery_async(monitor_item: MonitorItem, bot_token: str, chat_id: str, service_name: str, 
                                       url_admin: str, service_url: str, response_time: float, 
                                       check_time=None):
     """
     Gửi thông báo phục hồi service đến Telegram (AsyncIO version)
-    
+
+    Args:
+        monitor_item (MonitorItem): Đối tượng MonitorItem
     Args:
         bot_token (str): Bot token
         chat_id (str): Chat ID
@@ -174,11 +189,22 @@ async def send_telegram_recovery_async(bot_token: str, chat_id: str, service_nam
     if check_time is None:
         check_time = datetime.now()
     
-    # Format tin nhắn với HTML
-    message = f"""✅ <b>SERVICE IS GOOD NOW</b> ✅
+    # Format check_interval_seconds thành dạng dễ đọc
+    interval_seconds = monitor_item.check_interval_seconds
+    if interval_seconds >= 86400:  # >= 1 day
+        interval_str = f"{interval_seconds / 86400:.1f}d"
+    elif interval_seconds >= 3600:  # >= 1 hour
+        interval_str = f"{interval_seconds / 3600:.1f}h"
+    elif interval_seconds >= 60:  # >= 1 minute
+        interval_str = f"{interval_seconds / 60:.0f}m"
+    else:
+        interval_str = f"{interval_seconds:.0f}s"
 
-📊 <b>Service:</b> {service_name}
+    # Format tin nhắn với HTML
+    message = f"""✅ <b>SERVICE OK: {service_name} </b>
+
 🌐 <b>URL:</b> {service_url}
+🕒 <b>Interval:</b> {interval_str}
 ✅ <b>Status:</b> UP
 ⚡ <b>Response Time:</b> {response_time:.2f}ms
 🕒 <b>Time:</b> {check_time.strftime('%Y-%m-%d %H:%M:%S')}
@@ -208,21 +234,23 @@ async def test_telegram_connection_async(bot_token: str, chat_id: str):
 if __name__ == "__main__":
     async def main():
         # Test basic message
-        bot_token = "YOUR_BOT_TOKEN"
-        chat_id = "YOUR_CHAT_ID"
+        # bot_token = "YOUR_BOT_TOKEN"
+        # chat_id = "YOUR_CHAT_ID"
         
-        result = await test_telegram_connection_async(bot_token, chat_id)
-        print(f"Test result: {result}")
+        # result = await test_telegram_connection_async(bot_token, chat_id)
+        # print(f"Test result: {result}")
         
-        # Test alert
-        alert_result = await send_telegram_alert_async(
-            bot_token=bot_token,
-            chat_id=chat_id,
-            url_admin="https://admin.example.com",
-            service_name="Test Service",
-            service_url="https://example.com",
-            error_message="Connection timeout"
-        )
-        print(f"Alert result: {alert_result}")
+        # # Test alert
+        # alert_result = await send_telegram_alert_async(
+        #     monitor_item=monitor_item,
+        #     bot_token=bot_token,
+        #     chat_id=chat_id,
+        #     service_name="Test Service",
+        #     service_url="https://example.com",
+        #     error_message="Connection timeout"
+        # )
+
+        # print(f"Alert result: {alert_result}")
+        print("Start ...")
     
     asyncio.run(main())
