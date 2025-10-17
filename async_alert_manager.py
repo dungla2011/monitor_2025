@@ -47,10 +47,18 @@ class AsyncAlertManager:
     async def can_send_telegram_alert(self, throttle_seconds: int) -> bool:
         """Kiểm tra có thể gửi telegram alert không với logic consecutive error control"""
         async with self._lock:
+
+            #Nếu lần gửi alert cuối quá 23h thì cho phép, 1 ngày min 1 lần
+            if time.time() - self.thread_telegram_last_sent_alert > 23*3600:                
+                ol1(f"✅ [Telegram {self.thread_id}] Reset throttle due to last alert sent over 23 hours ago", self.thread_id)
+                return True
+
             # Logic: allow_alert_for_consecutive_error = 1 -> cho phép gửi liên tiếp
             #        allow_alert_for_consecutive_error != 1 (0 hoặc null) -> chỉ gửi lần đầu
             throttle_enabled = self.allow_consecutive_alert != 1
-            
+
+
+                        
             # throttle_enabled = True: Chặn gửi liên tiếp (chỉ gửi lần đầu lỗi)
             # throttle_enabled = False: Cho phép gửi liên tiếp theo time throttle
             if throttle_enabled:
@@ -84,6 +92,13 @@ class AsyncAlertManager:
     async def can_send_webhook_alert(self, throttle_seconds: int) -> bool:
         """Kiểm tra có thể gửi webhook alert không với logic consecutive error control"""
         async with self._lock:
+
+            #Nếu lần gửi alert cuối quá 23h thì cho phép gửi, coi như 1 ngày được ít nhất 1 lần
+            if time.time() - self.thread_webhook_last_sent_alert > 23*3600:                
+                ol1(f"✅ [Webhook {self.thread_id}] Reset throttle due to last alert sent over 23 hours ago", self.thread_id)
+                return True
+
+
             # WEBHOOK_THROTTLE_ENABLED = True: Chặn gửi liên tiếp (chỉ gửi lần đầu lỗi)
             # WEBHOOK_THROTTLE_ENABLED = False: Cho phép gửi liên tiếp theo time throttle
             if WEBHOOK_THROTTLE_ENABLED:
