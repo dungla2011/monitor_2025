@@ -117,7 +117,7 @@ async def ping_icmp_async(monitor_item):
                     return {
                         'success': False,
                         'response_time': None,
-                        'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                        'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                         'details': {
                             'hostname': hostname,
                             'ping3_result': None,
@@ -151,7 +151,7 @@ async def ping_icmp_async(monitor_item):
                 return {
                     'success': False,
                     'response_time': None,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'hostname': hostname,
                         'ping3_error': str(e),
@@ -185,7 +185,7 @@ async def ping_icmp_async(monitor_item):
                 return {
                     'success': False,
                     'response_time': None,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'hostname': hostname,
                         'os_error': str(e),
@@ -219,7 +219,7 @@ async def ping_icmp_async(monitor_item):
                 return {
                     'success': False,
                     'response_time': None,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'hostname': hostname,
                         'unexpected_error': str(e),
@@ -327,7 +327,7 @@ async def ping_web_async(monitor_item, session):
                         return {
                             'success': False,
                             'response_time': response_time_ms,
-                            'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                            'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                             'details': {
                                 'status_code': response.status,
                                 'reason': response.reason,
@@ -357,7 +357,7 @@ async def ping_web_async(monitor_item, session):
                 return {
                     'success': False,
                     'response_time': response_time_ms,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'url': url, 
                         'timeout': True,
@@ -384,7 +384,7 @@ async def ping_web_async(monitor_item, session):
                 return {
                     'success': False,
                     'response_time': response_time_ms,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'url': url, 
                         'error': str(e),
@@ -411,7 +411,7 @@ async def ping_web_async(monitor_item, session):
                 return {
                     'success': False,
                     'response_time': response_time_ms,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'url': url, 
                         'error': str(e),
@@ -532,7 +532,7 @@ async def check_tcp_port_async(monitor_item):
                     return {
                         'success': False,
                         'response_time': response_time_ms,
-                        'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                        'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                         'details': {
                             'hostname': hostname,
                             'port': port,
@@ -565,7 +565,7 @@ async def check_tcp_port_async(monitor_item):
                     return {
                         'success': False,
                         'response_time': response_time_ms,
-                        'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                        'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                         'details': {
                             'hostname': hostname,
                             'port': port,
@@ -598,7 +598,7 @@ async def check_tcp_port_async(monitor_item):
                     return {
                         'success': False,
                         'response_time': response_time_ms,
-                        'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                        'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                         'details': {
                             'hostname': hostname,
                             'port': port,
@@ -627,7 +627,7 @@ async def check_tcp_port_async(monitor_item):
                 return {
                     'success': False,
                     'response_time': response_time_ms,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'url': url, 
                         'error': str(e),
@@ -787,7 +787,7 @@ async def check_ssl_certificate_async(monitor_item):
                         return {
                             'success': False,
                             'response_time': response_time_ms,
-                            'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                            'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                             'details': {
                                 'hostname': hostname, 
                                 'port': port,
@@ -815,7 +815,7 @@ async def check_ssl_certificate_async(monitor_item):
                     return {
                         'success': False,
                         'response_time': response_time_ms,
-                        'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                        'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                         'details': {
                             'hostname': hostname, 
                             'port': port, 
@@ -843,7 +843,7 @@ async def check_ssl_certificate_async(monitor_item):
                     return {
                         'success': False,
                         'response_time': response_time_ms,
-                        'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                        'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                         'details': {
                             'hostname': hostname, 
                             'port': port, 
@@ -871,7 +871,7 @@ async def check_ssl_certificate_async(monitor_item):
                     return {
                         'success': False,
                         'response_time': response_time_ms,
-                        'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                        'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                         'details': {
                             'hostname': hostname, 
                             'port': port, 
@@ -900,7 +900,7 @@ async def check_ssl_certificate_async(monitor_item):
                 return {
                     'success': False,
                     'response_time': response_time_ms,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'url': url, 
                         'error': str(e),
@@ -978,7 +978,7 @@ async def check_web_content_async(monitor_item, session):
                         return {
                             'success': False,
                             'response_time': response_time_ms,
-                            'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                            'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                             'details': {
                                 'status_code': response.status,
                                 'url': str(response.url),
@@ -1030,7 +1030,7 @@ async def check_web_content_async(monitor_item, session):
                                 return {
                                     'success': False,
                                     'response_time': response_time_ms,
-                                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                                     'details': {
                                         'status_code': response.status,
                                         'content_length': len(content),
@@ -1083,7 +1083,7 @@ async def check_web_content_async(monitor_item, session):
                             return {
                                 'success': False,
                                 'response_time': response_time_ms,
-                                'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                                'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                                 'details': {
                                     'status_code': response.status,
                                     'content_length': len(content),
@@ -1136,7 +1136,7 @@ async def check_web_content_async(monitor_item, session):
                 return {
                     'success': False,
                     'response_time': response_time_ms,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'url': url, 
                         'search_text': search_text, 
@@ -1163,7 +1163,7 @@ async def check_web_content_async(monitor_item, session):
                 return {
                     'success': False,
                     'response_time': response_time_ms,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'url': url, 
                         'search_text': search_text, 
@@ -1190,7 +1190,7 @@ async def check_web_content_async(monitor_item, session):
                 return {
                     'success': False,
                     'response_time': response_time_ms,
-                    'message': f'{error_msg} (after {MAX_RETRIES} retries)',
+                    'message': f'{error_msg} (after {MAX_RETRIES + 1} retries)',
                     'details': {
                         'url': url, 
                         'search_text': search_text, 

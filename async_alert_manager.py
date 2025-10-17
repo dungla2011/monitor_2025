@@ -12,7 +12,7 @@ from utils import ol1, safe_get_env_int, safe_get_env_bool
 EXTENDED_ALERT_INTERVAL_MINUTES = safe_get_env_int('EXTENDED_ALERT_INTERVAL_MINUTES', 5)  # Số phút giãn alert sau khi quá ngưỡng (0 = không giãn)
 TELEGRAM_THROTTLE_ENABLED = safe_get_env_bool('TELEGRAM_THROTTLE_ENABLED', True)  # True = chặn gửi liên tiếp (chỉ lần đầu), False = cho phép gửi liên tiếp
 WEBHOOK_THROTTLE_ENABLED = safe_get_env_bool('WEBHOOK_THROTTLE_ENABLED', True)  # True = chặn gửi liên tiếp (chỉ lần đầu), False = cho phép gửi liên tiếp
-
+COUNT_SEND_ALERT_BEFORE_EXTENDED_INTERVAL = safe_get_env_int('COUNT_SEND_ALERT_BEFORE_EXTENDED_INTERVAL', 5)  # Số lần gửi alert trước khi áp dụng giãn cách (0 = không giãn)
 
 # Removed get_monitor_item_by_id_async to avoid signal issues
 
@@ -63,7 +63,7 @@ class AsyncAlertManager:
             else:
                 # Chế độ không throttle: gửi theo time interval
                 # Sau 5 lần lỗi liên tiếp, thời gian tối thiểu là 5 phút nếu gửi tiếp
-                if self.consecutive_error_count > 5:
+                if self.consecutive_error_count > COUNT_SEND_ALERT_BEFORE_EXTENDED_INTERVAL:
                     throttle_seconds = max(throttle_seconds, EXTENDED_ALERT_INTERVAL_MINUTES * 60)  # Tối thiểu 5 phút
                     ol1(f"🔇 [Telegram {self.thread_id}] Extended throttling: {throttle_seconds}s due to {self.consecutive_error_count} consecutive errors", self.thread_id)
 
@@ -96,7 +96,7 @@ class AsyncAlertManager:
             else:
                 # Chế độ không throttle: gửi theo time interval
                 # Sau 5 lần lỗi liên tiếp, thời gian tối thiểu là 5 phút nếu gửi tiếp  
-                if self.consecutive_error_count > 5:
+                if self.consecutive_error_count > COUNT_SEND_ALERT_BEFORE_EXTENDED_INTERVAL:
                     throttle_seconds = max(throttle_seconds, EXTENDED_ALERT_INTERVAL_MINUTES * 60)  # Tối thiểu 5 phút
                     ol1(f"🔇 [Webhook {self.thread_id}] Extended throttling: {throttle_seconds}s due to {self.consecutive_error_count} consecutive errors", self.thread_id)
 

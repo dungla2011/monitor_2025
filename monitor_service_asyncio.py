@@ -957,6 +957,15 @@ class AsyncMonitorService:
             ol1(f"=== Checking: (ID: {monitor_item.id})", monitor_item, True)
             ol1(f"Type: {monitor_item.type}, Interval: {check_interval}s, URL: {monitor_item.url_check}", monitor_item)
             # ol1(f"Async check with {MAX_CONCURRENT_CHECKS} max concurrent", monitor_item)
+            #  Nếu url_check empty, thì bỏ qua
+            if not monitor_item.url_check:
+                ol1(f"⚠️ [SKIP] Monitor URL is empty, skipping check.", monitor_item)
+                return {
+                    'success': False,
+                    'response_time': None,
+                    'message': "Monitor URL is empty, skipping check.",
+                    'details': {}
+                }
             
             try:
                 # Call appropriate async check function (same logic as original)
@@ -1306,6 +1315,11 @@ class AsyncMonitorService:
 
             # Create monitoring tasks
             for monitor in monitors:
+                # Bỏ qua các monitor có url_check rỗng:
+                if not monitor.url_check:
+                    ol1(f"⚠️ [SKIP] [Test-T{self.thread_id}] Monitor ID {monitor.id} has empty URL, skipping...", monitor)
+                    continue
+
                 task = asyncio.create_task(
                     self.monitor_loop(monitor),
                     name=f"Monitor-T{self.thread_id}-{monitor.id}-{monitor.name}"
