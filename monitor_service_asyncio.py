@@ -548,7 +548,7 @@ class AsyncMonitorService:
                 if LIMIT or CHUNK_INFO:
                     # Khi có LIMIT/CHUNK: chỉ lấy đúng subset cần thiết để tiết kiệm memory
                     if self.db_type == 'mysql':
-                        query = "SELECT * FROM monitor_items ORDER BY id"
+                        query = "SELECT * FROM monitor_items WHERE deleted_at IS NULL ORDER BY id"
                         if LIMIT:
                             # LIMIT áp dụng cho tất cả monitors, không phụ thuộc enable
                             query += f" LIMIT {LIMIT}"
@@ -560,7 +560,7 @@ class AsyncMonitorService:
                                 columns = [desc[0] for desc in cursor.description]
                                 all_monitors = [MonitorItemDict(dict(zip(columns, row))) for row in rows]
                     else:
-                        query = "SELECT * FROM monitor_items ORDER BY id"
+                        query = "SELECT * FROM monitor_items WHERE deleted_at IS NULL ORDER BY id"
                         if LIMIT:
                             query += f" LIMIT {LIMIT}"
                         
@@ -574,11 +574,11 @@ class AsyncMonitorService:
                         offset = CHUNK_INFO['offset']
                         limit = CHUNK_INFO['limit']
                         all_monitors = all_monitors[offset:offset + limit] if offset < len(all_monitors) else []
-                        
+                        ol1(f"[Cache] [Test-T{self.thread_id}] Applied chunk filtering: {len(all_monitors)} monitors", monitor_item)
                 else:
                     # Khi không có LIMIT/CHUNK: lấy tất cả để detect enable changes toàn hệ thống
                     if self.db_type == 'mysql':
-                        query = "SELECT * FROM monitor_items ORDER BY id"
+                        query = "SELECT * FROM monitor_items WHERE deleted_at IS NULL ORDER BY id"
                         async with self.db_pool.acquire() as conn:
                             async with conn.cursor() as cursor:
                                 await cursor.execute(query)
@@ -586,7 +586,7 @@ class AsyncMonitorService:
                                 columns = [desc[0] for desc in cursor.description]
                                 all_monitors = [MonitorItemDict(dict(zip(columns, row))) for row in rows]
                     else:
-                        query = "SELECT * FROM monitor_items ORDER BY id"
+                        query = "SELECT * FROM monitor_items WHERE deleted_at IS NULL ORDER BY id"
                         async with self.db_pool.acquire() as conn:
                             await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                             rows = await conn.fetch(query)
@@ -622,7 +622,7 @@ class AsyncMonitorService:
                            user_id, last_check_status, result_valid, result_error,
                            count_online, count_offline, stopTo, maxAlertCount
                     FROM monitor_items 
-                    WHERE enable = 1
+                    WHERE enable = 1 AND deleted_at IS NULL
                     ORDER BY id
                 """
             else:
@@ -631,7 +631,7 @@ class AsyncMonitorService:
                            user_id, last_check_status, result_valid, result_error,
                            count_online, count_offline, "stopTo", "maxAlertCount"
                     FROM monitor_items 
-                    WHERE enable = 1
+                    WHERE deleted_at IS NULL AND enable = 1
                     ORDER BY id
                 """
             
@@ -739,7 +739,7 @@ class AsyncMonitorService:
         try:
             ol1(f"*** Not cache, [Test-T{self.thread_id}] Getting monitor item {item_id} from DB", item_id)
             if self.db_type == 'mysql':
-                query = "SELECT * FROM monitor_items WHERE id = %s"
+                query = "SELECT * FROM monitor_items WHERE id = %s AND deleted_at IS NULL"
                 async with self.db_pool.acquire() as conn:
                     async with conn.cursor() as cursor:
                         await cursor.execute(query, (item_id,))
@@ -750,7 +750,7 @@ class AsyncMonitorService:
                             return MonitorItemDict(row_dict)
                         return None
             else:  # PostgreSQL
-                query = "SELECT * FROM monitor_items WHERE id = $1"
+                query = "SELECT * FROM monitor_items WHERE id = $1 AND deleted_at IS NULL"
                 async with self.db_pool.acquire() as conn:
                     await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
                     row = await conn.fetchrow(query, item_id)

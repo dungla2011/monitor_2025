@@ -13,6 +13,14 @@ from async_telegram_helper import send_telegram_alert_async, send_telegram_recov
 from async_alert_manager import get_alert_manager
 from utils import ol1, olerror, safe_get_env_int, safe_get_env_bool
 
+# Firebase notification support (optional)
+try:
+    from async_firebase_helper import send_monitor_alert_firebase, send_monitor_recovery_firebase
+    FIREBASE_ENABLED = True
+except ImportError:
+    FIREBASE_ENABLED = False
+    ol1("[Firebase] Module not available - Firebase notifications disabled")
+
 
 # Throttle settings - Read from environment variables
 TELEGRAM_THROTTLE_SECONDS = safe_get_env_int('TELEGRAM_THROTTLE_SECONDS', 30)
@@ -133,6 +141,9 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
             else:
                 ol1(f"❌ [AsyncIO {thread_id}] Telegram alert failed: {result['message']}", monitor_item)
                 olerror(f"Telegram alert error details: {result}")
+            
+            # Gửi Firebase notification (song song với Telegram)
+            await send_firebase_notification_async(monitor_item, is_error=True, error_message=enhanced_error_message)
         else:
             admin_domain = os.getenv('ADMIN_DOMAIN', 'mon.lad.vn')
             result = await send_telegram_recovery_async(monitor_item,
@@ -148,11 +159,79 @@ async def send_telegram_notification_async(monitor_item, is_error=True, error_me
             else:
                 ol1(f"❌ [AsyncIO {thread_id}] Telegram recovery notification failed: {result['message']}", monitor_item)
                 olerror(f"Telegram recovery error details: {result}")
+            
+            # Gửi Firebase recovery notification (song song với Telegram)
+            await send_firebase_notification_async(monitor_item, is_error=False, response_time=response_time)
                 
     except Exception as e:
         import traceback
         error_traceback = traceback.format_exc()
         ol1(f"❌ [AsyncIO {monitor_item.id}] Telegram notification error: {e}", monitor_item)
+        ol1(f"📍 Traceback:\n{error_traceback}", monitor_item)
+
+
+async def send_firebase_notification_async(monitor_item, is_error=True, error_message="", response_time=None):
+    """
+    Gửi thông báo Firebase push notification (tương tự Telegram)
+    
+    Args:
+        monitor_item: MonitorItem object
+        is_error (bool): True nếu là lỗi, False nếu là phục hồi
+        error_message (str): Thông báo lỗi
+        response_time (float): Thời gian phản hồi (ms)
+    """
+    if not FIREBASE_ENABLED:
+        return
+    
+    thread_id = monitor_item.id
+    
+    try:
+        # Lấy user_id từ monitor_item
+        user_id = getattr(monitor_item, 'user_id', None)
+        if not user_id:
+            # ol1(f"[Firebase {thread_id}] No user_id found, skipping", monitor_item)
+            return
+        
+        admin_domain = os.getenv('ADMIN_DOMAIN', 'mon.lad.vn')
+        admin_url = f"https://{admin_domain}/member/monitor-item/edit/{monitor_item.id}"
+        
+        if is_error:
+            # Gửi alert (Firebase token sẽ được lấy bên trong hàm này)
+            result = await send_monitor_alert_firebase(
+                user_id=user_id,
+                monitor_name=monitor_item.name,
+                monitor_url=monitor_item.url_check,
+                error_message=error_message,
+                monitor_id=monitor_item.id,
+                admin_url=admin_url
+            )
+            if result['success']:
+                ol1(f"🔔 [Firebase {thread_id}] Alert sent successfully to user {user_id}", monitor_item)
+            else:
+                # Chỉ log lỗi nếu không phải "No Firebase token"
+                if 'No Firebase token' not in result['message']:
+                    ol1(f"❌ [Firebase {thread_id}] Alert failed: {result['message']}", monitor_item)
+        else:
+            # Gửi recovery (Firebase token sẽ được lấy bên trong hàm này)
+            result = await send_monitor_recovery_firebase(
+                user_id=user_id,
+                monitor_name=monitor_item.name,
+                monitor_url=monitor_item.url_check,
+                response_time=response_time or 0,
+                monitor_id=monitor_item.id,
+                admin_url=admin_url
+            )
+            if result['success']:
+                ol1(f"🔔 [Firebase {thread_id}] Recovery notification sent successfully to user {user_id}", monitor_item)
+            else:
+                # Chỉ log lỗi nếu không phải "No Firebase token"
+                if 'No Firebase token' not in result['message']:
+                    ol1(f"❌ [Firebase {thread_id}] Recovery notification failed: {result['message']}", monitor_item)
+                
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        ol1(f"❌ [Firebase {monitor_item.id}] Firebase notification error: {e}", monitor_item)
         ol1(f"📍 Traceback:\n{error_traceback}", monitor_item)
 
 

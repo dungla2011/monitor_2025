@@ -92,6 +92,7 @@ class MonitorSettings(Base):
     alert_time_ranges = Column(String(64), nullable=True)  # VARCHAR(64) in DB
     timezone = Column(Integer, default=7)  # GMT offset: 7 = Asia/Ho_Chi_Minh, 0 = UTC, etc.
     global_stop_alert_to = Column(DateTime, nullable=True)  # Dừng alert đến thời gian này
+    firebase_token = Column(String(255), nullable=True)  # Firebase Cloud Messaging token
     
     def __repr__(self):
         return f"<MonitorSettings(id={self.id}, user_id={self.user_id}, alert_time_ranges='{self.alert_time_ranges}')>"
