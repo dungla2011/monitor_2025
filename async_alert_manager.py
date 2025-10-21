@@ -49,7 +49,7 @@ class AsyncAlertManager:
         async with self._lock:
 
             #Nếu lần gửi alert cuối quá 23h thì cho phép, 1 ngày min 1 lần
-            if time.time() - self.thread_telegram_last_sent_alert > 23*3600:                
+            if time.time() - self.thread_telegram_last_sent_alert > 23.9*3600:                
                 ol1(f"✅ [Telegram {self.thread_id}] Reset throttle due to last alert sent over 23 hours ago", self.thread_id)
                 return True
 
@@ -94,7 +94,7 @@ class AsyncAlertManager:
         async with self._lock:
 
             #Nếu lần gửi alert cuối quá 23h thì cho phép gửi, coi như 1 ngày được ít nhất 1 lần
-            if time.time() - self.thread_webhook_last_sent_alert > 23*3600:                
+            if time.time() - self.thread_webhook_last_sent_alert > 23.9*3600:               
                 ol1(f"✅ [Webhook {self.thread_id}] Reset throttle due to last alert sent over 23 hours ago", self.thread_id)
                 return True
 
