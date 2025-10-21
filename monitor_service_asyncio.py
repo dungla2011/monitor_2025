@@ -677,7 +677,7 @@ class AsyncMonitorService:
                             last_check_time = NOW(),
                             count_online = count_online + 1,
                             updated_at = NOW()
-                        WHERE id = %s
+                        WHERE id = %s AND deleted_at IS NULL
                     """
                     async with self.db_pool.acquire() as conn:
                         async with conn.cursor() as cursor:
@@ -690,7 +690,7 @@ class AsyncMonitorService:
                             last_check_time = NOW(),
                             count_offline = count_offline + 1,
                             updated_at = NOW()
-                        WHERE id = %s
+                        WHERE id = %s AND deleted_at IS NULL
                     """
                     async with self.db_pool.acquire() as conn:
                         async with conn.cursor() as cursor:
@@ -704,7 +704,7 @@ class AsyncMonitorService:
                             last_check_time = NOW(),
                             count_online = count_online + 1,
                             updated_at = NOW()
-                        WHERE id = $2
+                        WHERE id = $2 AND deleted_at IS NULL
                     """
                     async with self.db_pool.acquire() as conn:
                         await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
@@ -716,7 +716,7 @@ class AsyncMonitorService:
                             last_check_time = NOW(),
                             count_offline = count_offline + 1,
                             updated_at = NOW()
-                        WHERE id = $2
+                        WHERE id = $2 AND deleted_at IS NULL
                     """
                     async with self.db_pool.acquire() as conn:
                         await conn.execute(f"SET search_path TO {TIMESCALEDB_SCHEMA}, public")
