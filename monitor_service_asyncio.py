@@ -59,6 +59,9 @@ from async_telegram_notification import send_telegram_notification_async, reset_
 # Import async webhook notification
 from async_webhook_notification import send_webhook_notification_async
 
+# Import async firebase notification
+from async_firebase_notification import send_firebase_notification_async
+
 # TimescaleDB Manager - embedded for simplicity
 class TimescaleDBManager:
     """Simple TimescaleDB manager for monitor data"""
@@ -574,7 +577,7 @@ class AsyncMonitorService:
                         offset = CHUNK_INFO['offset']
                         limit = CHUNK_INFO['limit']
                         all_monitors = all_monitors[offset:offset + limit] if offset < len(all_monitors) else []
-                        ol1(f"[Cache] [Test-T{self.thread_id}] Applied chunk filtering: {len(all_monitors)} monitors", monitor_item)
+                        ol1(f"[Cache] [Test-T{self.thread_id}] Applied chunk filtering: {len(all_monitors)} monitors")
                 else:
                     # Khi không có LIMIT/CHUNK: lấy tất cả để detect enable changes toàn hệ thống
                     if self.db_type == 'mysql':
@@ -1023,6 +1026,12 @@ class AsyncMonitorService:
                             is_error=False, 
                             response_time=result['response_time']
                         )
+                        # Send Firebase recovery
+                        await send_firebase_notification_async(
+                            monitor_item, 
+                            is_error=False, 
+                            response_time=result['response_time']
+                        )
                     monitor_item._last_status = 1
                 else:
                     # Error notification
@@ -1033,6 +1042,12 @@ class AsyncMonitorService:
                     )
                     # Send webhook alert
                     await send_webhook_notification_async(
+                        monitor_item, 
+                        is_error=True, 
+                        error_message=result.get('message', 'Unknown error')
+                    )
+                    # Send Firebase alert
+                    await send_firebase_notification_async(
                         monitor_item, 
                         is_error=True, 
                         error_message=result.get('message', 'Unknown error')
@@ -1080,7 +1095,7 @@ class AsyncMonitorService:
                 # Update database with error
                 await self.update_monitor_result(monitor_id, -1)
                 
-                # Send telegram and webhook alert notification for exceptions
+                # Send telegram, webhook, and Firebase alert notifications for exceptions
                 await send_telegram_notification_async(
                     monitor_item, 
                     is_error=True, 
@@ -1088,6 +1103,12 @@ class AsyncMonitorService:
                 )
                 # Send webhook alert for exceptions
                 await send_webhook_notification_async(
+                    monitor_item, 
+                    is_error=True, 
+                    error_message=f"Exception: {str(e)}"
+                )
+                # Send Firebase alert for exceptions
+                await send_firebase_notification_async(
                     monitor_item, 
                     is_error=True, 
                     error_message=f"Exception: {str(e)}"

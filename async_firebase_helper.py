@@ -1,5 +1,48 @@
 """
 AsyncIO Firebase Helper - Send push notifications via Firebase Cloud Messaging (FCM)
+
+⚠️ QUAN TRỌNG - DATA-ONLY MESSAGES:
+================================
+Script này gửi DATA-ONLY messages (không có notification field).
+Điều này cho phép app Android tự xử lý và phát CUSTOM SOUND khi ở background.
+
+📱 ANDROID APP - Cần implement FirebaseMessagingService:
+---------------------------------------------------------
+
+public class MyFirebaseMessagingService extends FirebaseMessagingService {
+    @Override
+    public void onMessageReceived(RemoteMessage remoteMessage) {
+        // Nhận data message (kể cả khi app ở background)
+        Map<String, String> data = remoteMessage.getData();
+        
+        String title = data.get("title");
+        String body = data.get("body");
+        String alertType = data.get("alert_type");
+        
+        // Tạo notification với CUSTOM SOUND
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(body)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setSound(Uri.parse("android.resource://" + getPackageName() + "/" + R.raw.custom_alert))  // ✅ Custom sound
+            .setPriority(NotificationCompat.PRIORITY_HIGH);
+        
+        NotificationManagerCompat.from(this).notify(notificationId, builder.build());
+    }
+}
+
+🔊 Đặt file sound vào: app/src/main/res/raw/custom_alert.mp3
+
+📝 AndroidManifest.xml:
+------------------------
+<service
+    android:name=".MyFirebaseMessagingService"
+    android:exported="false">
+    <intent-filter>
+        <action android:name="com.google.firebase.MESSAGING_EVENT" />
+    </intent-filter>
+</service>
+
 """
 
 import asyncio
@@ -75,6 +118,12 @@ async def send_firebase_notification_async(
     """
     Gửi push notification đến 1 device token (AsyncIO version)
     
+    ⚠️ CHIẾN LƯỢC GỬI 2 LẦN:
+    1. Lần 1: Notification-only (hiển thị ngay, đảm bảo user thấy)
+    2. Lần 2: Data-only (app tự xử lý, custom sound khi background)
+    
+    → Đảm bảo chắc chắn nhận được, trùng cũng không sao!
+    
     Args:
         token (str): Firebase device token (FCM token)
         title (str): Tiêu đề notification
@@ -86,34 +135,36 @@ async def send_firebase_notification_async(
         dict: {
             'success': bool,
             'message': str,
-            'message_id': str or None
+            'message_id_1': str or None,  # Notification message
+            'message_id_2': str or None   # Data message
         }
     """
     try:
         # Ensure Firebase is initialized
         initialize_firebase()
         
-        # Tạo notification object
+        loop = asyncio.get_event_loop()
+        
+        # ============================================
+        # MESSAGE 1: NOTIFICATION-ONLY
+        # ============================================
+        # Hiển thị notification mặc định của hệ thống (đảm bảo user thấy ngay)
         notification = messaging.Notification(
             title=title,
             body=body,
             image=image_url
         )
         
-        # Tạo message
-        message = messaging.Message(
+        message1 = messaging.Message(
             notification=notification,
-            data=data or {},
             token=token,
-            # Android specific options
             android=messaging.AndroidConfig(
                 priority='high',
                 notification=messaging.AndroidNotification(
                     sound='default',
-                    channel_id='monitor_alerts'  # Phải tạo channel này trong Android app
+                    channel_id='monitor_alerts'
                 )
             ),
-            # iOS specific options
             apns=messaging.APNSConfig(
                 payload=messaging.APNSPayload(
                     aps=messaging.Aps(
@@ -124,18 +175,55 @@ async def send_firebase_notification_async(
             )
         )
         
-        # Gửi message (blocking call, wrap trong executor)
-        loop = asyncio.get_event_loop()
-        message_id = await loop.run_in_executor(
+        # Gửi message 1
+        message_id_1 = await loop.run_in_executor(
             None,
             messaging.send,
-            message
+            message1
+        )
+        
+        # ============================================
+        # MESSAGE 2: DATA-ONLY
+        # ============================================
+        # Gửi data để app tự xử lý (custom sound khi ở background)
+        message_data = data or {}
+        message_data['title'] = title
+        message_data['body'] = body
+        if image_url:
+            message_data['image_url'] = image_url
+        
+        message2 = messaging.Message(
+            data=message_data,
+            token=token,
+            android=messaging.AndroidConfig(
+                priority='high'
+            ),
+            apns=messaging.APNSConfig(
+                headers={
+                    'apns-priority': '10'
+                },
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        content_available=True,
+                        sound='default',
+                        badge=1
+                    )
+                )
+            )
+        )
+        
+        # Gửi message 2
+        message_id_2 = await loop.run_in_executor(
+            None,
+            messaging.send,
+            message2
         )
         
         return {
             'success': True,
-            'message': 'Notification sent successfully',
-            'message_id': message_id
+            'message': 'Both notifications sent successfully',
+            'message_id_1': message_id_1,  # Notification message
+            'message_id_2': message_id_2   # Data message
         }
         
     except firebase_admin.exceptions.FirebaseError as e:
@@ -162,6 +250,10 @@ async def send_firebase_multicast_async(
     """
     Gửi push notification đến nhiều device tokens cùng lúc (AsyncIO version)
     
+    ⚠️ CHIẾN LƯỢC GỬI 2 LẦN cho MULTICAST:
+    1. Batch 1: Notification-only (hiển thị ngay)
+    2. Batch 2: Data-only (app tự xử lý, custom sound)
+    
     Args:
         tokens (list): List of Firebase device tokens
         title (str): Tiêu đề notification
@@ -173,26 +265,28 @@ async def send_firebase_multicast_async(
         dict: {
             'success': bool,
             'message': str,
-            'success_count': int,
-            'failure_count': int,
-            'responses': list
+            'batch1_success': int,  # Notification messages
+            'batch2_success': int,  # Data messages
+            'total_sent': int
         }
     """
     try:
         # Ensure Firebase is initialized
         initialize_firebase()
         
-        # Tạo notification object
+        loop = asyncio.get_event_loop()
+        
+        # ============================================
+        # BATCH 1: NOTIFICATION-ONLY
+        # ============================================
         notification = messaging.Notification(
             title=title,
             body=body,
             image=image_url
         )
         
-        # Tạo multicast message
-        message = messaging.MulticastMessage(
+        message1 = messaging.MulticastMessage(
             notification=notification,
-            data=data or {},
             tokens=tokens,
             android=messaging.AndroidConfig(
                 priority='high',
@@ -211,27 +305,59 @@ async def send_firebase_multicast_async(
             )
         )
         
-        # Gửi multicast message (blocking call, wrap trong executor)
-        loop = asyncio.get_event_loop()
-        batch_response = await loop.run_in_executor(
+        # Gửi batch 1
+        batch_response_1 = await loop.run_in_executor(
             None,
             messaging.send_multicast,
-            message
+            message1
         )
         
+        # ============================================
+        # BATCH 2: DATA-ONLY
+        # ============================================
+        message_data = data or {}
+        message_data['title'] = title
+        message_data['body'] = body
+        if image_url:
+            message_data['image_url'] = image_url
+        
+        message2 = messaging.MulticastMessage(
+            data=message_data,
+            tokens=tokens,
+            android=messaging.AndroidConfig(
+                priority='high'
+            ),
+            apns=messaging.APNSConfig(
+                headers={
+                    'apns-priority': '10'
+                },
+                payload=messaging.APNSPayload(
+                    aps=messaging.Aps(
+                        content_available=True,
+                        sound='default',
+                        badge=1
+                    )
+                )
+            )
+        )
+        
+        # Gửi batch 2
+        batch_response_2 = await loop.run_in_executor(
+            None,
+            messaging.send_multicast,
+            message2
+        )
+        
+        total_success = batch_response_1.success_count + batch_response_2.success_count
+        
         return {
-            'success': batch_response.failure_count == 0,
-            'message': f'Sent to {batch_response.success_count}/{len(tokens)} devices',
-            'success_count': batch_response.success_count,
-            'failure_count': batch_response.failure_count,
-            'responses': [
-                {
-                    'success': resp.success,
-                    'message_id': resp.message_id if resp.success else None,
-                    'error': str(resp.exception) if not resp.success else None
-                }
-                for resp in batch_response.responses
-            ]
+            'success': batch_response_1.failure_count == 0 or batch_response_2.failure_count == 0,
+            'message': f'Batch1: {batch_response_1.success_count}/{len(tokens)}, Batch2: {batch_response_2.success_count}/{len(tokens)}',
+            'batch1_success': batch_response_1.success_count,
+            'batch2_success': batch_response_2.success_count,
+            'total_sent': total_success,
+            'batch1_failures': batch_response_1.failure_count,
+            'batch2_failures': batch_response_2.failure_count
         }
         
     except Exception as e:
