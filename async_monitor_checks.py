@@ -95,7 +95,8 @@ async def ping_icmp_async(monitor_item):
                 }
             else:
                 # Ping failed (ping3 returns False on timeout/unreachable, None on error)
-                error_msg = f'ICMP ping failed to {hostname}: No response or timeout'
+                timestamp = datetime.now().strftime('%H:%M:%S')
+                error_msg = f'[{timestamp}] ICMP ping failed to {hostname}: No response or timeout'
                 
                 if attempt < MAX_RETRIES:
                     retry_messages.append(f"Attempt {attempt + 1}: {error_msg}")
@@ -826,8 +827,9 @@ async def check_ssl_certificate_async(monitor_item):
                     }
             except asyncio.TimeoutError:
                 response_time_ms = (time.time() - start_time) * 1000
-                error_msg = f'SSL connection timeout to {hostname}:{port}'
-                
+                timestamp = datetime.now().strftime('%H:%M:%S')
+                error_msg = f'[{timestamp}] SSL connection timeout to {hostname}:{port}'
+
                 if attempt < MAX_RETRIES:
                     retry_messages.append(f"Attempt {attempt + 1}: {error_msg}")
                     last_error = {

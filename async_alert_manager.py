@@ -13,6 +13,7 @@ EXTENDED_ALERT_INTERVAL_MINUTES = safe_get_env_int('EXTENDED_ALERT_INTERVAL_MINU
 TELEGRAM_THROTTLE_ENABLED = safe_get_env_bool('TELEGRAM_THROTTLE_ENABLED', True)  # True = chặn gửi liên tiếp (chỉ lần đầu), False = cho phép gửi liên tiếp
 WEBHOOK_THROTTLE_ENABLED = safe_get_env_bool('WEBHOOK_THROTTLE_ENABLED', True)  # True = chặn gửi liên tiếp (chỉ gửi lần đầu), False = cho phép gửi liên tiếp
 FIREBASE_THROTTLE_ENABLED = safe_get_env_bool('FIREBASE_THROTTLE_ENABLED', True)  # True = chặn gửi liên tiếp (chỉ lần đầu), False = cho phép gửi liên tiếp
+EMAIL_THROTTLE_ENABLED = True  # Email LUÔN throttle (không gửi liên tiếp) để tránh spam
 COUNT_SEND_ALERT_BEFORE_EXTENDED_INTERVAL = safe_get_env_int('COUNT_SEND_ALERT_BEFORE_EXTENDED_INTERVAL', 5)  # Số lần gửi alert trước khi áp dụng giãn cách (0 = không giãn)
 
 # Removed get_monitor_item_by_id_async to avoid signal issues
@@ -29,6 +30,7 @@ class AsyncAlertManager:
         self.thread_telegram_last_sent_alert = 0
         self.thread_webhook_last_sent_alert = 0
         self.thread_firebase_last_sent_alert = 0  # ✅ Tracking cho Firebase
+        self.thread_email_last_sent_alert = 0  # ✅ Tracking cho Email
         self._lock = asyncio.Lock()
     
     async def increment_consecutive_error(self):
@@ -52,7 +54,7 @@ class AsyncAlertManager:
 
             #Nếu lần gửi alert cuối quá 23h thì cho phép, 1 ngày min 1 lần
             if time.time() - self.thread_telegram_last_sent_alert > 23.9*3600:                
-                ol1(f"✅ [Telegram {self.thread_id}] Reset throttle due to last alert sent over 23 hours ago", self.thread_id)
+                ol1(f"✅ [Telegram {self.thread_id}] Reset throttle due to last alert sent over 24 hours ago", self.thread_id)
                 return True
 
             # Logic: allow_alert_for_consecutive_error = 1 -> cho phép gửi liên tiếp
@@ -97,7 +99,7 @@ class AsyncAlertManager:
 
             #Nếu lần gửi alert cuối quá 23h thì cho phép gửi, coi như 1 ngày được ít nhất 1 lần
             if time.time() - self.thread_webhook_last_sent_alert > 23.9*3600:               
-                ol1(f"✅ [Webhook {self.thread_id}] Reset throttle due to last alert sent over 23 hours ago", self.thread_id)
+                ol1(f"✅ [Webhook {self.thread_id}] Reset throttle due to last alert sent over 24 hours ago", self.thread_id)
                 return True
 
 
@@ -137,7 +139,7 @@ class AsyncAlertManager:
 
             # Nếu lần gửi alert cuối quá 23h thì cho phép, 1 ngày min 1 lần
             if time.time() - self.thread_firebase_last_sent_alert > 23.9*3600:
-                ol1(f"✅ [Firebase {self.thread_id}] Reset throttle due to last alert sent over 23 hours ago", self.thread_id)
+                ol1(f"✅ [Firebase {self.thread_id}] Reset throttle due to last alert sent over 24 hours ago", self.thread_id)
                 return True
 
             # FIREBASE_THROTTLE_ENABLED = True: Chặn gửi liên tiếp (chỉ gửi lần đầu lỗi)
@@ -169,6 +171,30 @@ class AsyncAlertManager:
         """Đánh dấu đã gửi Firebase alert"""
         async with self._lock:
             self.thread_firebase_last_sent_alert = time.time()
+    
+    async def can_send_email_alert(self, throttle_seconds: int) -> bool:
+        """Kiểm tra có thể gửi Email alert không với logic consecutive error control"""
+        async with self._lock:
+
+            # Nếu lần gửi alert cuối quá 23h thì cho phép, 1 ngày min 1 lần
+            if time.time() - self.thread_email_last_sent_alert > 23.9*3600:
+                ol1(f"✅ [Email {self.thread_id}] Reset throttle due to last alert sent over 24 hours ago", self.thread_id)
+                return True
+
+            # EMAIL_THROTTLE_ENABLED = True (LUÔN LUÔN): Chặn gửi liên tiếp (chỉ gửi lần đầu lỗi)
+            # Email KHÔNG có chế độ no-throttle vì sẽ bị coi là spam
+            if EMAIL_THROTTLE_ENABLED:
+                # Chế độ throttle: chỉ gửi lần đầu lỗi (consecutive_error_count = 1)
+                if self.consecutive_error_count > 1:
+                    ol1(f"🔇 [Email {self.thread_id}] Throttle mode: Skip consecutive error #{self.consecutive_error_count} (only send first error)", self.thread_id)
+                    return False
+                ol1(f"✅ [Email {self.thread_id}] Throttle mode: Allow first error (consecutive_error_count = {self.consecutive_error_count})", self.thread_id)
+                return True
+
+    async def mark_email_sent(self):
+        """Đánh dấu đã gửi Email alert"""
+        async with self._lock:
+            self.thread_email_last_sent_alert = time.time()
     
     async def update_last_alert_time(self):
         """Cập nhật thời gian alert cuối cùng"""

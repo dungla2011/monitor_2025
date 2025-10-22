@@ -62,6 +62,9 @@ from async_webhook_notification import send_webhook_notification_async
 # Import async firebase notification
 from async_firebase_notification import send_firebase_notification_async
 
+# Import async email notification
+from async_email_notification import send_email_notification_async
+
 # TimescaleDB Manager - embedded for simplicity
 class TimescaleDBManager:
     """Simple TimescaleDB manager for monitor data"""
@@ -263,6 +266,9 @@ async def check_single_internet_domain(domain):
         
         response_time = time.time() - start_time
         
+        timestamp = datetime.now().strftime('%H:%M:%S')
+        error_msg = f'- [{timestamp}] ICMP ping failed to {domain}: (timeout/unreachable)'
+
         if ping_result:  # ping3 returns ms on success, False/None on failure
             return {
                 'success': True,
@@ -275,7 +281,7 @@ async def check_single_internet_domain(domain):
                 'success': False,
                 'domain': domain, 
                 'response_time': response_time,
-                'message': f'ICMP ping failed to {domain} (timeout/unreachable)'
+                'message': error_msg
             }
             
     except Exception as e:
@@ -1032,6 +1038,12 @@ class AsyncMonitorService:
                             is_error=False, 
                             response_time=result['response_time']
                         )
+                        # Send Email recovery
+                        await send_email_notification_async(
+                            monitor_item, 
+                            is_error=False, 
+                            response_time=result['response_time']
+                        )
                     monitor_item._last_status = 1
                 else:
                     # Error notification
@@ -1043,11 +1055,17 @@ class AsyncMonitorService:
                     # Send webhook alert
                     await send_webhook_notification_async(
                         monitor_item, 
-                        is_error=True, 
+                            is_error=True, 
                         error_message=result.get('message', 'Unknown error')
                     )
                     # Send Firebase alert
                     await send_firebase_notification_async(
+                        monitor_item, 
+                        is_error=True, 
+                        error_message=result.get('message', 'Unknown error')
+                    )
+                    # Send Email alert
+                    await send_email_notification_async(
                         monitor_item, 
                         is_error=True, 
                         error_message=result.get('message', 'Unknown error')
